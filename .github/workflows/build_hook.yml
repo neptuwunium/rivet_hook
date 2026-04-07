@@ -23,13 +23,13 @@ jobs:
         uses: microsoft/setup-msbuild@v2
 
       - name: Configure HID
-        run: meson setup build/hid hid --buildtype release --backend vs2022
+        run: meson setup build/hid hid --buildtype release --debug --backend vs2022
 
       - name: Compile HID
         run: meson compile -C build/hid -j 0
 
       - name: Configure Hook
-        run: meson setup build/hook . --buildtype release --backend vs2022
+        run: meson setup build/hook . --buildtype release --debug --backend vs2022
 
       - name: Compile Hook
         run: meson compile -C build/hook -j 0
@@ -37,9 +37,12 @@ jobs:
       - name: Move Files
         run: |
           mkdir -p build/release
-          mv build/hid/hid_win10.* build/release/
-          mv build/hid/hid_win11.* build/release/
-          mv build/hook/rivet_hook.* build/release/
+          mv build/hid/hid_win10.dll build/release/
+          mv build/hid/hid_win11.dll build/release/
+          mv build/hook/rivet_hook.dll build/release/
+          mv build/hid/hid_win10.pdb build/release/
+          mv build/hid/hid_win11.pdb build/release/
+          mv build/hook/rivet_hook.pdb build/release/
 
       - uses: actions/upload-artifact@v4
         with:
