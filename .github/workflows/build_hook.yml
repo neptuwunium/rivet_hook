@@ -1,0 +1,36 @@
+name: Build Hook
+
+on:
+  push:
+    branches: [ hook ]
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure HID
+        run: meson setup build/hid hid --buildtype release
+
+      - name: Compile HID
+        run: meson compile build/hid hid
+
+      - name: Configure Hook
+        run: meson setup build/hook . --buildtype release
+
+      - name: Compile Hook
+        run: meson compile build/hook .
+
+      - name: Move Files
+        run: |
+          mkdir -p build/release
+          mv build/hid/hid_win10.dll build/release/
+          mv build/hid/hid_win11.dll build/release/
+          mv build/hook/rivet_hook.dll build/release/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: 'release'
+          path: 'build/release'
