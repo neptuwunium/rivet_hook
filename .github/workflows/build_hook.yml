@@ -26,13 +26,13 @@ jobs:
         run: meson setup build/hid hid --buildtype release --backend vs2022
 
       - name: Compile HID
-        run: meson compile build/hid hid
+        run: meson compile -C build/hid -j 0
 
       - name: Configure Hook
         run: meson setup build/hook . --buildtype release --backend vs2022
 
       - name: Compile Hook
-        run: meson compile build/hook .
+        run: meson compile -C build/hook -j 0
 
       - name: Move Files
         run: |
