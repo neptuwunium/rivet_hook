@@ -17,16 +17,19 @@ jobs:
           python-version: '3.x'
 
       - name: Install Meson
-        run: pip install meson ninja
+        run: pip install meson
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
 
       - name: Configure HID
-        run: meson setup build/hid hid --buildtype release
+        run: meson setup build/hid hid --buildtype release --backend vs2022
 
       - name: Compile HID
         run: meson compile build/hid hid
 
       - name: Configure Hook
-        run: meson setup build/hook . --buildtype release
+        run: meson setup build/hook . --buildtype release --backend vs2022
 
       - name: Compile Hook
         run: meson compile build/hook .
@@ -37,6 +40,9 @@ jobs:
           mv build/hid/hid_win10.dll build/release/
           mv build/hid/hid_win11.dll build/release/
           mv build/hook/rivet_hook.dll build/release/
+          mv build/hid/hid_win10.pdb build/release/
+          mv build/hid/hid_win11.pdb build/release/
+          mv build/hook/rivet_hook.pdb build/release/
 
       - uses: actions/upload-artifact@v4
         with:
