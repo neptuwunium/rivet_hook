@@ -37,12 +37,9 @@ jobs:
       - name: Move Files
         run: |
           mkdir -p build/release
-          mv build/hid/hid_win10.dll build/release/
-          mv build/hid/hid_win11.dll build/release/
-          mv build/hook/rivet_hook.dll build/release/
-          mv build/hid/hid_win10.pdb build/release/
-          mv build/hid/hid_win11.pdb build/release/
-          mv build/hook/rivet_hook.pdb build/release/
+          mv build/hid/hid_win10.* build/release/
+          mv build/hid/hid_win11.* build/release/
+          mv build/hook/rivet_hook.* build/release/
 
       - uses: actions/upload-artifact@v4
         with:
