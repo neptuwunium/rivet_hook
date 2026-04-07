@@ -680,10 +680,10 @@ namespace rivet_hook {
 			game_load_ops[loadIndex].size = asset->size;
 			game_load_ops[loadIndex].header = asset->header;
 			game_load_ops[loadIndex].language = static_cast<uint8_t>(selectedLanguage);
-			game_load_ops[loadIndex].priority |= 1;
+			game_load_ops[loadIndex].priority |= 1u;
 
-			if (std::ranges::contains(known_important_assets, assetId)) {
-				game_load_ops[loadIndex].priority &= ~1;
+			if (std::ranges::find(known_important_assets, assetId) != known_important_assets.end()) {
+				game_load_ops[loadIndex].priority &= ~1u;
 			}
 
 			loadIndex += 1;

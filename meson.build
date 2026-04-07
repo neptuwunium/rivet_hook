@@ -8,7 +8,7 @@ project('rivet', 'cpp',
 	default_options: [
 		'prefix=/usr',
 		'warning_level=3',
-		'cpp_std=c++23'
+		'cpp_std=c++20'
 	],
     meson_version: '>=1.2.1')
 
