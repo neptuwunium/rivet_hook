@@ -21,8 +21,8 @@
 #define SAVE_SETTING(group, name, comment) SAVE_SETTING_EX(group, name, #name, comment)
 
 auto
-rivet_hook::Settings::load() -> rivet_hook::Settings {
-	rivet_hook::Settings settings;
+rivet_hook::Settings::load() -> Settings {
+	Settings settings;
 
 	try {
 		const auto tbl = toml::parse(settings_name);
@@ -56,7 +56,7 @@ rivet_hook::Settings::load() -> rivet_hook::Settings {
 }
 
 auto
-rivet_hook::Settings::save() -> void {
+rivet_hook::Settings::save() const -> void {
 	toml::value tbl((toml::ordered_table()));
 
 	SAVE_SETTING("utility", suppress_crash_handler, "disable the exception handler allowing for debuggers to attach without invoking the crash handler");

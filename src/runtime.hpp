@@ -16,7 +16,7 @@
 
 namespace rivet_hook {
 	extern std::ofstream g_output;
-	extern rivet_hook::Settings g_settings;
+	extern Settings g_settings;
 	extern HMODULE g_game_module;
 
 	auto

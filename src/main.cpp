@@ -9,10 +9,10 @@
 
 
 auto APIENTRY
-DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserved) -> BOOL {
-	if (ul_reason_for_call == DLL_PROCESS_ATTACH) {
+DllMain(HMODULE, const DWORD reason, LPVOID) -> BOOL {
+	if (reason == DLL_PROCESS_ATTACH) {
 		rivet_hook::runtime::init();
-	} else if (ul_reason_for_call == DLL_PROCESS_DETACH) {
+	} else if (reason == DLL_PROCESS_DETACH) {
 		rivet_hook::runtime::fini();
 	}
 

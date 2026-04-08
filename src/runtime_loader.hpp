@@ -12,7 +12,7 @@
 #include "settings.hpp"
 
 namespace rivet_hook {
-	constexpr static const char *decode_url_string_name = "?DecodeURLString@Library@cohtml@@SAXPEBDIPEADPEAI@Z";
+	constexpr static auto decode_url_string_name = "?DecodeURLString@Library@cohtml@@SAXPEBDIPEADPEAI@Z";
 
 	using AssetId = uint64_t;
 
@@ -116,8 +116,8 @@ namespace rivet_hook {
 		uint8_t flags; // from LoadMeta
 		uint8_t padding;
 		int32_t dataRangeCount;
-		struct DataRange* dataRanges; // pointer to data ranges
-		struct DataRange defaultDataRanges[0x4];
+		DataRange *dataRanges; // pointer to data ranges
+		DataRange defaultDataRanges[0x4];
 		void* customData[0x4]; // stuff from the asset manager, initialized to zero
 	};
 	static_assert(sizeof(AssetHeader) == 0xb0, "AssetHeader size mismatch");
@@ -138,9 +138,9 @@ namespace rivet_hook {
 	static_assert(sizeof(SortFunc) == 0x10, "SortFunc size mismatch");
 
 	struct AssetFile {
-		int32_t status;
+		uint32_t status;
 		int32_t padding;
-		int64_t data;
+		uint64_t data;
 		AssetId asset_id;
 	};
 #pragma pack(pop)
@@ -153,7 +153,7 @@ namespace rivet_hook {
 	using decode_url_t = void (*)(const char*, unsigned int, char*, unsigned int*);
 	using mgr_load_asset_t = intptr_t (*)(intptr_t, AssetId, AssetId, const char*, intptr_t, intptr_t, int32_t);
 	using sort_t = void (*)(intptr_t elems, int32_t count, int32_t element_size, SortFunc dispatcher);
-	using mount_archive_t = void (*)(ArchiveFileSystem* self, int32_t index);
+	using mount_archive_t = void (*)(ArchiveFileSystem* self, uint32_t index);
 	using commit_assets_t = void (*)(int32_t count);
 	using alloc_asset_t = AssetHeader* (*)(uint32_t flags, int32_t result, AssetId asset_id, LoadMetadata* metadata, uint8_t language);
 	using resolve_asset_t = FoundAsset* (*)(void* self, AssetId asset_id, AssetLanguage language, AssetType type);
@@ -162,10 +162,10 @@ namespace rivet_hook {
 	using create_mip_t = void (*)(intptr_t self, intptr_t asset, uint32_t lod);
 	using create_mip_ng_t = void (*)(intptr_t self);
 	using window_init_t = bool (*)(intptr_t self);
-	using is_asset_valid_t = bool (*)(int32_t magic, uint8_t manager_id, int64_t asset_id);
+	using is_asset_valid_t = bool (*)(uint32_t magic, uint8_t manager_id, AssetId asset_id);
 
 	struct AssetLoader {
-		auto init() -> void;
-		auto fini() -> void;
+		static auto init() -> void;
+		static auto fini() -> void;
 	};
 } // namespace rivet_hook

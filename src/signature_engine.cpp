@@ -19,7 +19,7 @@
 #pragma ide diagnostic ignored "cppcoreguidelines-pro-bounds-pointer-arithmetic"
 
 auto
-rivet_hook::scan(HMODULE module, const hex_signature &signature) -> std::vector<uint8_t *> {
+rivet_hook::scan(const HMODULE module, const hex_signature &signature) -> std::vector<uint8_t *> {
 	std::vector<uint8_t *> results;
 
 	MODULEINFO module_info;
@@ -27,9 +27,9 @@ rivet_hook::scan(HMODULE module, const hex_signature &signature) -> std::vector<
 		return results;
 	}
 
-	auto *start = reinterpret_cast<uint8_t *>(module);
-	auto *module_end = start + module_info.SizeOfImage;
-	auto *cur = start;
+	const auto *start = reinterpret_cast<uint8_t *>(module);
+	const auto *module_end = start + module_info.SizeOfImage;
+	const auto *cur = start;
 
 	while (cur < module_end) {
 		// get the memory information
@@ -38,7 +38,7 @@ rivet_hook::scan(HMODULE module, const hex_signature &signature) -> std::vector<
 			break;
 		}
 
-		auto *begin = reinterpret_cast<uint8_t *>(mem.BaseAddress);
+		auto *begin = static_cast<uint8_t *>(mem.BaseAddress);
 		auto *end = begin + mem.RegionSize;
 
 		// search for the signature

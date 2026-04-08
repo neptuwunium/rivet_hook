@@ -8,7 +8,6 @@
 #include <windows.h>
 
 #include <cstdint>
-#include <string_view>
 #include <vector>
 
 #include "signature_types.hpp"

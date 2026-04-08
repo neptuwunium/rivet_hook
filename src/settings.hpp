@@ -8,7 +8,7 @@
 #include <vector>
 
 namespace rivet_hook {
-	constexpr static const char *settings_name = R"(.\rivet.toml)";
+	constexpr static auto settings_name = R"(.\rivet.toml)";
 
 	struct Settings {
 		bool suppress_crash_handler = true;
@@ -30,6 +30,6 @@ namespace rivet_hook {
 		bool log_mod_state = false;
 
 		static auto load() -> Settings;
-		auto save() -> void;
+		auto save() const -> void;
 	};
 } // namespace rivet_hook

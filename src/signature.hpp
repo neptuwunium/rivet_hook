@@ -49,27 +49,27 @@ namespace rivet_hook {
 	MAKE_SIGNATURE(IS_INSTALLED_ASSET, "48 89 5C 24 ?? 48 89 6C 24 ?? 48 89 74 24 ?? 48 89 7C 24 ?? 41 56 48 83 EC 20 48 8B DA 48 8B F1")
 	MAKE_SIGNATURE(WINDOW_INIT_RCRA, "48 89 5C 24 ?? 48 89 74 24 ?? 57 48 83 EC 30 C7 44 24 ?? 00 00 80 41")
 
-	constexpr const uint32_t REL_ADDRESS_SIZE = 0x4;
+	constexpr uint32_t REL_ADDRESS_SIZE = 0x4;
 
-	constexpr const uint32_t DDL_HASH_MAP_ADDRESS = 0x6;
-	constexpr const uint32_t DDL_TYPE_LIST_ADDRESS = 0x3;
-	constexpr const uint32_t DDL_TYPE_LIST_COUNT_ADDRESS = 0xD;
+	constexpr uint32_t DDL_HASH_MAP_ADDRESS = 0x6;
+	constexpr uint32_t DDL_TYPE_LIST_ADDRESS = 0x3;
+	constexpr uint32_t DDL_TYPE_LIST_COUNT_ADDRESS = 0xD;
 
-	constexpr const uint32_t NXEXCEPTION_VTABLE_ADDRESS = 0x3;
-	constexpr const uint32_t NXEXCEPTION_VTABLE_INIT = 0x1;
+	constexpr uint32_t NXEXCEPTION_VTABLE_ADDRESS = 0x3;
+	constexpr uint32_t NXEXCEPTION_VTABLE_INIT = 0x1;
 
-	constexpr const uint32_t LOAD_OPS_ADDRESS = 0x3;
-	constexpr const uint32_t CREATE_ASSET_RCRA_ADDRESS = 0x2;
-	constexpr const uint32_t CREATE_ASSET_DATA_RCRA_ADDRESS = 0x3;
-	constexpr const uint32_t DISABLE_DIRECTSTORAGE_RCRA = 0x3;
-	constexpr const uint32_t LEGACY_TEXTURE_ADDRESS = 0x3;
+	constexpr uint32_t LOAD_OPS_ADDRESS = 0x3;
+	constexpr uint32_t CREATE_ASSET_RCRA_ADDRESS = 0x2;
+	constexpr uint32_t CREATE_ASSET_DATA_RCRA_ADDRESS = 0x3;
+	constexpr uint32_t DISABLE_DIRECTSTORAGE_RCRA = 0x3;
+	constexpr uint32_t LEGACY_TEXTURE_ADDRESS = 0x3;
 
-	constexpr const uint32_t ARCHIVEFS_VTABLE_ADDRESS = 0x3;
-	constexpr const uint32_t ARCHIVEFS_VTABLE_OPENFILE = 0x6;
-	constexpr const uint32_t ARCHIVEFS_VTABLE_READFILE = 0x7;
-	constexpr const uint32_t ARCHIVEFS_VTABLE_CLOSEFILE = 0x9;
-	constexpr const uint32_t ARCHIVEFS_VTABLE_MOUNT = 0x10;
+	constexpr uint32_t ARCHIVEFS_VTABLE_ADDRESS = 0x3;
+	constexpr uint32_t ARCHIVEFS_VTABLE_OPENFILE = 0x6;
+	constexpr uint32_t ARCHIVEFS_VTABLE_READFILE = 0x7;
+	constexpr uint32_t ARCHIVEFS_VTABLE_CLOSEFILE = 0x9;
+	constexpr uint32_t ARCHIVEFS_VTABLE_MOUNT = 0x10;
 
-	constexpr const uint32_t REL_SET_TEXT_LANGUAGE_ADDRESS = 0x1;
-	constexpr const uint32_t REL_SET_AUDIO_LANGUAGE_ADDRESS = 0xC;
+	constexpr uint32_t REL_SET_TEXT_LANGUAGE_ADDRESS = 0x1;
+	constexpr uint32_t REL_SET_AUDIO_LANGUAGE_ADDRESS = 0xC;
 } // namespace rivet_hook

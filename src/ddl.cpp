@@ -20,7 +20,7 @@ namespace rivet_hook::ddl {
 	get_ddl_field(nlohmann::json &field, const uint8_t* object, uint32_t offset, uint8_t array_type, uint8_t field_type, int32_t index, const ddl_type_info* const type_ptr, const int32_t type_index) -> void {
 		if (array_type == 0) {
 			switch (field_type) {
-				case 0: field["default"] = reinterpret_cast<const uint8_t*>(object + offset)[index]; return;
+				case 0: field["default"] = (object + offset)[index]; return;
 				case 1: field["default"] = reinterpret_cast<const uint16_t*>(object + offset)[index]; return;
 				case 2: field["default"] = reinterpret_cast<const uint32_t*>(object + offset)[index]; return;
 				case 3: field["default"] = reinterpret_cast<const uint64_t*>(object + offset)[index]; return;
@@ -30,14 +30,13 @@ namespace rivet_hook::ddl {
 				case 7: field["default"] = reinterpret_cast<const int64_t*>(object + offset)[index]; return;
 				case 8: field["default"] = reinterpret_cast<const float*>(object + offset)[index]; return;
 				case 9: field["default"] = reinterpret_cast<const double*>(object + offset)[index]; return;
-				case 11: field["default"] = reinterpret_cast<const uint32_t*>(object + offset)[index]; return; // enum
+				case 11: // enum
 				case 12: field["default"] = reinterpret_cast<const uint32_t*>(object + offset)[index]; return; // bitset
 				case 15: field["default"] = reinterpret_cast<const bool*>(object + offset)[index]; return;
-				case 17: field["default"] = reinterpret_cast<const uint64_t*>(object + offset)[index]; return; // tuid
+				case 17: // tuid
 				case 20: field["default"] = reinterpret_cast<const uint64_t*>(object + offset)[index]; return; // instance
 				case 10: { // str
-					auto str = reinterpret_cast<const ddl_runtime_str*>(object + offset)[index];
-					if(str.value != nullptr) {
+					if (auto str = reinterpret_cast<const ddl_runtime_str *>(object + offset)[index]; str.value != nullptr) {
 						nlohmann::json str_default;
 						str_default["value"] = str.value;
 						str_default["id"] = str.hash;
@@ -48,8 +47,7 @@ namespace rivet_hook::ddl {
 					return;
 				}
 				case 16: { // file
-					auto str = reinterpret_cast<const ddl_runtime_file*>(object + offset)[index];
-					if(str.value != nullptr) {
+					if (auto str = reinterpret_cast<const ddl_runtime_file *>(object + offset)[index]; str.value != nullptr) {
 						nlohmann::json str_default;
 						str_default["value"] = str.value;
 						str_default["id"] = str.asset_id;
@@ -60,7 +58,7 @@ namespace rivet_hook::ddl {
 					return;
 				}
 				default: {
-					if(g_settings.debug_ddl && reinterpret_cast<const uint8_t*>(object + offset)[index] != 0) {
+					if(g_settings.debug_ddl && (object + offset)[index] != 0 && type_ptr != nullptr) {
 						g_output << "[DDL] " << type_ptr->name << " field " << type_ptr->field_names[type_index] << " (index " << index << ", type " << static_cast<int>(field_type) << ") has non-zero value that is not handled" << std::endl;
 					}
 
@@ -94,14 +92,12 @@ namespace rivet_hook::ddl {
 		}
 
 		if(array_type == 2) {
-			auto count = reinterpret_cast<const int32_t*>(object + offset + (sizeof(intptr_t) * 1))[0];
-			if(count <= 0) {
+			if (auto count = reinterpret_cast<const int32_t *>(object + offset + sizeof(intptr_t) * 1)[0]; count <= 0) {
 				field["default"] = nullptr;
 				return;
 			}
 
-			auto ptr_values = reinterpret_cast<const uint8_t* const*>(object + offset)[0];
-			if (ptr_values == nullptr) {
+			if (auto ptr_values = reinterpret_cast<const uint8_t *const *>(object + offset)[0]; ptr_values == nullptr) {
 				field["default"] = nullptr;
 				return;
 			}
@@ -123,7 +119,7 @@ namespace rivet_hook::ddl {
 		}
 
 		if(array_type == 3) {
-			auto count = reinterpret_cast<const int32_t*>(object + offset + (sizeof(intptr_t) * 2))[0];
+			auto count = reinterpret_cast<const int32_t*>(object + offset + sizeof(intptr_t) * 2)[0];
 			if(count <= 0) {
 				field["default"] = nullptr;
 				return;
@@ -188,9 +184,9 @@ namespace rivet_hook::ddl {
 
 		g_output << "[DDL] dumping..." << std::endl;
 
-		const auto *type_hash_map = reinterpret_cast<const ddl_hash_map *>(load_rel_var(hm_pointers[0], DDL_HASH_MAP_ADDRESS));
-		const auto **type_list = reinterpret_cast<const ddl_type_descriptor **>(load_rel_var(tl_pointers[0], DDL_TYPE_LIST_ADDRESS));
-		const auto type_count = *reinterpret_cast<const uint32_t *>(load_rel_var(tl_pointers[0], DDL_TYPE_LIST_COUNT_ADDRESS));
+		const auto *type_hash_map = static_cast<const ddl_hash_map *>(load_rel_var(hm_pointers[0], DDL_HASH_MAP_ADDRESS));
+		const auto **type_list = static_cast<const ddl_type_descriptor **>(load_rel_var(tl_pointers[0], DDL_TYPE_LIST_ADDRESS));
+		const auto type_count = *static_cast<const uint32_t *>(load_rel_var(tl_pointers[0], DDL_TYPE_LIST_COUNT_ADDRESS));
 
 		std::unordered_set<uint32_t> enum_ids;
 		std::unordered_set<uint32_t> bitset_ids;
@@ -227,12 +223,10 @@ namespace rivet_hook::ddl {
 			}
 
 			void* ddl_inst_this = calloc(type_ptr->allocation_size, 1);
-			auto type_ctor = reinterpret_cast<ddl_call_t*>(type_ptr->constructor_ptr);
-			auto type_dtor = reinterpret_cast<ddl_call_t*>(type_ptr->destructor_ptr);
-			auto type_init = reinterpret_cast<ddl_call_t*>(type_ptr->init_defaults_ptr);
-			if(type_ctor != nullptr && type_init != nullptr) {
-				auto temp = type_ctor(ddl_inst_this);
-				if(temp != nullptr) {
+			auto type_ctor = type_ptr->constructor_ptr;
+			auto type_dtor = type_ptr->destructor_ptr;
+			if (auto type_init = type_ptr->init_defaults_ptr; type_ctor != nullptr && type_init != nullptr) {
+				if (auto temp = type_ctor(ddl_inst_this); temp != nullptr) {
 					type_init(temp);
 				} else {
 					free(ddl_inst_this);
@@ -246,7 +240,7 @@ namespace rivet_hook::ddl {
 			if(g_settings.debug_ddl && ddl_inst_this != nullptr) {
 				std::ofstream ddl_bin;
 				ddl_bin.open("./ddl/" + std::string(type_ptr->name) + ".bin", std::ios::app | std::ios::binary);
-				ddl_bin.write(reinterpret_cast<char*>(ddl_inst_this), type_ptr->allocation_size + 16);
+				ddl_bin.write(static_cast<char*>(ddl_inst_this), type_ptr->allocation_size + 16);
 				ddl_bin.flush();
 				ddl_bin.close();
 			}
@@ -268,30 +262,29 @@ namespace rivet_hook::ddl {
 				field["label"] = type_ptr->field_labels[fi];
 				field["display_label"] = type_ptr->field_names2[fi];
 				field["description"] = type_ptr->field_descriptions[fi];
-				field["type"] = static_cast<uint32_t>(type_ptr->field_types[fi]);
-				field["array_type"] = static_cast<uint32_t>(type_ptr->field_array_types[fi]);
-				field["map_type"] = static_cast<uint32_t>(type_ptr->field_map_types[fi]);
-				field["fized_size"] = static_cast<uint32_t>(type_ptr->field_array_sizes[fi]);
+				field["type"] = type_ptr->field_types[fi];
+				field["array_type"] = type_ptr->field_array_types[fi];
+				field["map_type"] = type_ptr->field_map_types[fi];
+				field["fized_size"] = type_ptr->field_array_sizes[fi];
 				field["offset"] = type_ptr->field_offsets[fi];
 
-				if(ddl_inst_this != 0) {
+				if(ddl_inst_this != nullptr) {
 					get_ddl_field(field, static_cast<uint8_t*>(ddl_inst_this), type_ptr->field_offsets[fi], type_ptr->field_array_types[fi], type_ptr->field_types[fi], 0, type_ptr, fi);
 				}
 
-				const auto *extra = type_ptr->field_ex[fi];
-				if (extra != nullptr) {
+				if (const auto *extra = type_ptr->field_ex[fi]; extra != nullptr) {
 					auto field_type = type_ptr->field_types[fi];
 					auto type_id = type_ptr->field_type_ids[fi];
 					if (field_type == 13) {
-						const auto *ex_13 = reinterpret_cast<const ddl_type_info *>(extra);
+						const auto *ex_13 = static_cast<const ddl_type_info *>(extra);
 						nlohmann::json struct_type;
 						struct_type["name"] = ex_13->name;
 						struct_type["id"] = ex_13->type_id;
 						field["struct"] = struct_type;
 					} else if (field_type == 12) {
-						if (bitset_ids.find(type_id) == bitset_ids.end()) {
+						if (!bitset_ids.contains(type_id)) {
 							bitset_ids.emplace(type_id);
-							const auto *ex_12 = reinterpret_cast<const ddl_type_info_ex_type_12 *>(extra);
+							const auto *ex_12 = static_cast<const ddl_type_info_ex_type_12 *>(extra);
 							nlohmann::json bitset;
 							bitset["id"] = type_id;
 							nlohmann::json::array_t bitset_values;
@@ -307,9 +300,9 @@ namespace rivet_hook::ddl {
 							bitsets.push_back(bitset);
 						}
 					} else if (field_type == 11) {
-						const auto *ex_11 = reinterpret_cast<const ddl_type_info_ex_type_11 *>(extra);
+						const auto *ex_11 = static_cast<const ddl_type_info_ex_type_11 *>(extra);
 						field["enum_type_id"] = ex_11->select_info->type_id;
-						if (enum_ids.find(ex_11->select_info->type_id) == enum_ids.end()) {
+						if (!enum_ids.contains(ex_11->select_info->type_id)) {
 							enum_ids.emplace(ex_11->select_info->type_id);
 							nlohmann::json enuminfo;
 							enuminfo["id"] = ex_11->select_info->type_id;
@@ -394,8 +387,8 @@ namespace rivet_hook::ddl {
 			return;
 		}
 
-		version_str_t func1 = reinterpret_cast<version_str_t>(function_ptrs[0]);
-		version_hash_t func2 = reinterpret_cast<version_hash_t>(hash_function_ptrs[0]);
+		auto func1 = reinterpret_cast<version_str_t>(function_ptrs[0]);
+		auto func2 = reinterpret_cast<version_hash_t>(hash_function_ptrs[0]);
 
 		int32_t index = 0;
 		nlohmann::json versions = nlohmann::json::array_t();

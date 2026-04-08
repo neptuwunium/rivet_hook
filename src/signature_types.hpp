@@ -4,15 +4,9 @@
 
 #pragma once
 
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
-
-#include <psapi.h>
-#include <algorithm>
 #include <array>
 #include <cstdint>
 #include <string_view>
-#include <vector>
 
 namespace rivet_hook {
 	struct signature_byte {
@@ -20,7 +14,7 @@ namespace rivet_hook {
 		uint8_t value { 0 }; // value to match
 
 		auto
-		operator==(uint8_t byte) const -> bool {
+		operator==(const uint8_t byte) const -> bool {
 			return any || value == byte; // if any is true, any value is accepted
 		}
 	};
@@ -57,7 +51,7 @@ namespace rivet_hook {
 			if (hex_string[index] == '?' && hex_string[index + 1] == '?') { // if the value is a wildcard
 				signature.signature[signature.size++].any = true;
 			} else { // if the value is a hex value
-				signature.signature[signature.size++].value = (parse_octet(hex_string[index]) << 4) | parse_octet(hex_string[index + 1]);
+				signature.signature[signature.size++].value = parse_octet(hex_string[index]) << 4 | parse_octet(hex_string[index + 1]);
 			}
 		}
 

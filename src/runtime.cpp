@@ -7,7 +7,6 @@
 #include <memory>
 #include <ostream>
 #include <thread>
-#include <unordered_set>
 #include <cstdio>
 
 #include "ddl.hpp"
@@ -31,7 +30,7 @@ namespace {
 
 namespace rivet_hook {
 	std::ofstream g_output;
-	rivet_hook::Settings g_settings;
+	Settings g_settings;
 	HMODULE g_game_module = nullptr;
 
 #pragma clang diagnostic push
@@ -42,7 +41,7 @@ namespace rivet_hook {
 	std::string last_message;
 
 	auto
-	find_function(const std::string_view &name, HMODULE game, const hex_signature &signature) -> std::vector<uint8_t *>{
+	find_function(const std::string_view &name, const HMODULE game, const hex_signature &signature) -> std::vector<uint8_t *>{
 		g_output << "[rivet] searching for " << name << " pointer" << std::endl;
 		auto pointers = scan(game, signature);
 
@@ -55,14 +54,14 @@ namespace rivet_hook {
 	}
 
 	auto
-	load_rel_var(uint8_t* ptr, int rel_address) -> void* {
+	load_rel_var(uint8_t* ptr, const int rel_address) -> void* {
 		if (ptr == nullptr) {
 			return nullptr;
 		}
 
 		const auto rip = ptr + rel_address + REL_ADDRESS_SIZE;
 		const auto target = *reinterpret_cast<uint32_t *>(ptr + rel_address);
-		return reinterpret_cast<void*>(rip + target);
+		return rip + target;
 	}
 
 	auto
@@ -91,8 +90,8 @@ namespace rivet_hook {
 	}
 
 	auto
-	create_hook(const std::string_view &name, HMODULE game, const hex_signature &signature, LPVOID detour, LPVOID *original, size_t limit, int select) -> void {
-		auto pointers = find_function(name, game, signature);
+	create_hook(const std::string_view &name, const HMODULE game, const hex_signature &signature, LPVOID detour, LPVOID *original, const size_t limit, const int select) -> void {
+		const auto pointers = find_function(name, game, signature);
 		if (pointers.empty()) {
 			return;
 		}
@@ -113,13 +112,12 @@ namespace rivet_hook {
 
 	auto
 	context_log(const char *context, const char *message) -> const char * {
-		auto valid = (context != nullptr && context[0] != 0 && context[0] != '?') && (message != nullptr && message[0] != 0 && message[0] != '?');
+		const auto valid = context != nullptr && context[0] != 0 && context[0] != '?' && message != nullptr && message[0] != 0 && message[0] != '?';
 		const auto *result = fwd_context_log(context, message);
 		if (valid) {
-			auto current_context = std::string(context);
-			auto current_message = std::string(message);
+			const auto current_context = std::string(context);
 
-			if (current_context != last_context || current_message != last_message) {
+			if (const auto current_message = std::string(message); current_context != last_context || current_message != last_message) {
 				last_context = current_context;
 				last_message = current_message;
 				g_output << "[ctx] [" << (context == nullptr ? "?" : context) << "] " << (message == nullptr ? "" : message) << std::endl;
@@ -133,11 +131,11 @@ namespace rivet_hook {
 		if (message != nullptr) {
 			va_list args; // NOLINT(*-init-variables)
 			va_start(args, message);
-			auto buffer_size = vsnprintf(nullptr, 0, message, args) + 1;
-			auto buffer = std::make_unique<char[]>(buffer_size); // NOLINT(*-avoid-c-arrays)
+			const auto buffer_size = vsnprintf(nullptr, 0, message, args) + 1;
+			const auto buffer = std::make_unique<char[]>(buffer_size); // NOLINT(*-avoid-c-arrays)
 			vsnprintf(buffer.get(), buffer_size, message, args); // NOLINT(*-err33-c)
 			va_end(args);
-			std::string buffer_str(buffer.get());
+			const std::string buffer_str(buffer.get());
 			g_output << "[log] " << buffer_str;
 			if (buffer_str.back() != '\n') {
 				g_output << std::endl;
@@ -178,8 +176,7 @@ namespace rivet_hook {
 					g_output << "[rivet] loaded local renderdoc" << std::endl;
 					g_renderdoc = LoadLibraryA("renderdoc.dll");
 				} else {
-					auto renderdoc_path = std::filesystem::path(g_settings.renderdoc_path.data());
-					if (renderdoc_path.empty()) {
+					if (const auto renderdoc_path = std::filesystem::path(g_settings.renderdoc_path.data()); renderdoc_path.empty()) {
 						g_output << "[rivet] renderdoc.dll not found" << std::endl;
 					} else {
 						if (std::filesystem::exists(renderdoc_path)) {
@@ -197,7 +194,7 @@ namespace rivet_hook {
 					std::filesystem::create_directory("./ddl");
 				}
 				g_output << "[rivet] starting ddl dump thread" << std::endl;
-				g_ddl_dump_thread = std::thread(rivet_hook::ddl::dump_ddl);
+				g_ddl_dump_thread = std::thread(ddl::dump_ddl);
 			}
 
 			if (g_settings.attach_context_log) {
@@ -210,7 +207,7 @@ namespace rivet_hook {
 
 			if (g_settings.list_versions) {
 				g_output << "[rivet] dumping versions" << std::endl;
-				rivet_hook::ddl::list_versions();
+				ddl::list_versions();
 			}
 
 			g_output << "[rivet] init complete" << std::endl;

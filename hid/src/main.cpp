@@ -18,8 +18,8 @@ namespace {
 } // namespace
 
 auto WINAPI
-HIDDllMain(DWORD dwReason) -> BOOL {
-	if (dwReason == DLL_PROCESS_ATTACH) {
+HIDDllMain(const DWORD reason) -> BOOL {
+	if (reason == DLL_PROCESS_ATTACH) {
 		char sys_root[MAX_PATH];
 		if (GetEnvironmentVariableA("SystemRoot", sys_root, MAX_PATH - 1) == 0) {
 			strcpy(sys_root, "C\\Windows");
@@ -82,7 +82,7 @@ HIDDllMain(DWORD dwReason) -> BOOL {
 		proc[46] = GetProcAddress(h_library, "HidP_UsageListDifference");
 	}
 
-	if (dwReason == DLL_PROCESS_DETACH) {
+	if (reason == DLL_PROCESS_DETACH) {
 		FreeLibrary(h_library);
 		h_library = nullptr;
 		return 1;
@@ -92,15 +92,15 @@ HIDDllMain(DWORD dwReason) -> BOOL {
 }
 
 auto APIENTRY
-DllMain(HMODULE, DWORD ul_reason_for_call, LPVOID) -> BOOL {
-	if (ul_reason_for_call == DLL_PROCESS_ATTACH) {
+DllMain(HMODULE, const DWORD reason, LPVOID) -> BOOL {
+	if (reason == DLL_PROCESS_ATTACH) {
 		r_library = LoadLibraryA("rivet_hook.dll");
-	} else if (ul_reason_for_call == DLL_PROCESS_DETACH) {
+	} else if (reason == DLL_PROCESS_DETACH) {
 		FreeLibrary(r_library);
 		r_library = nullptr;
 	}
 
-	return HIDDllMain(ul_reason_for_call);
+	return HIDDllMain(reason);
 }
 
 extern "C" {
