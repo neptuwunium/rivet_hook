@@ -55,6 +55,17 @@ namespace rivet_hook {
 	}
 
 	auto
+	load_rel_var(uint8_t* ptr, int rel_address) -> void* {
+		if (ptr == nullptr) {
+			return nullptr;
+		}
+
+		const auto rip = ptr + rel_address + REL_ADDRESS_SIZE;
+		const auto target = *reinterpret_cast<uint32_t *>(ptr + rel_address);
+		return reinterpret_cast<void*>(rip + target);
+	}
+
+	auto
 	create_hook(const std::string_view &name, LPVOID pointer, LPVOID detour, LPVOID *original) -> void {
 		if (!g_minhook_initialized) {
 			if (MH_Initialize() != MH_OK) {
@@ -155,7 +166,8 @@ namespace rivet_hook {
 			}
 
 			if (g_settings.suppress_crash_handler) {
-				create_hook("crash handler", g_game_module, CRASH_HANDLER_SIGNATURE, reinterpret_cast<LPVOID>(&null_func), nullptr);
+				// todo: use vtable method
+				create_hook("crash handler", g_game_module, CRASH_HANDLER_RCRA_SIGNATURE, reinterpret_cast<LPVOID>(&null_func), nullptr);
 			}
 
 			loader.init();

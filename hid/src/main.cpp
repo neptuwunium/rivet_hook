@@ -317,7 +317,7 @@ PROXY_HidP_GetValueCaps() {
 }
 
 void
-PROXY_HidP_GetVersionInternal() { // uint32_t* Version 
+PROXY_HidP_GetVersionInternal() { // uint32_t* Version
 	if (proc[34] == nullptr) { // alternatively *Version = 1 if Win10
 		return;
 	}

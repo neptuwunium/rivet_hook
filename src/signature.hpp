@@ -9,18 +9,67 @@
 #include "signature_types.hpp"
 
 namespace rivet_hook {
+	// ddl
 	MAKE_SIGNATURE(DDL_HASH_MAP, "0f 57 c0 48 8d ?? ?? ?? ?? ?? 0f 11 05 ?? ?? ?? ?? 0f 11 05 ?? ?? ?? ?? 0f 11 05")
 	MAKE_SIGNATURE(DDL_TYPE_LIST, "48 8d ?? ?? ?? ?? ?? 66 89 41 14 8b ?? ?? ?? ?? ?? 48 89 ?? ?? ff c0 89 ?? ?? ?? ?? ?? c3")
-	MAKE_SIGNATURE(CONTEXT_LOG, "65 48 8b 04 25 58 00 00 00 48 85 c9 44 8b 05")
-	MAKE_SIGNATURE(LOG, "48 89 54 24 10 33 c0 4c 89 44 24 18 4c 89 4c 24 20")
-	MAKE_SIGNATURE(CRASH_HANDLER, "40 53 48 83 ec 20 80 79 38 00 48 8b d9 75 ?? e8 ?? 00 00 00 48 8d")
 	MAKE_SIGNATURE(VERSION, "48 0F BE C1 48 8D 0D ?? ?? ?? ?? 48 8B 04 C1 C3 8B")
 	MAKE_SIGNATURE(VERSION_HASH, "48 0F BE C1 48 8D 0D ?? ?? ?? ?? 8B 04 81 C3")
-	MAKE_SIGNATURE(LOAD_ASSET, "48 89 54 24 ?? 53 56 57 41 55 41 56 48 83 ?? ?? 48")
-	MAKE_SIGNATURE(CREATE_ASSET_ID, "40 53 48 83 EC ?? 48 8B C2 48 8B D9 48 85 D2 74 ?? 80")
 
-	constexpr const uint32_t VERSION_ADDRESS = 0x6;
-	constexpr const uint32_t VERSION_HASH_ADDRESS = 0x6;
-	constexpr const uint32_t VERSION_RIP = 0xA;
-	constexpr const uint32_t VERSION_HASH_RIP = 0xA;
+	// logging
+	MAKE_SIGNATURE(CONTEXT_LOG, "65 48 8b 04 25 58 00 00 00 48 85 c9 44 8b 05")
+	MAKE_SIGNATURE(LOG, "48 89 54 24 10 33 c0 4c 89 44 24 18 4c 89 4c 24 20")
+	MAKE_SIGNATURE(LOAD_ASSET, "48 89 54 24 ?? 53 56 57 41 55 41 56 48 83 ?? ?? 48") // note: only hooked for path logging
+
+	// util
+	MAKE_SIGNATURE(CRASH_HANDLER_RCRA, "40 53 48 83 ec 20 80 79 38 00 48 8b d9 75 ?? e8 ?? 00 00 00 48 8d")
+	MAKE_SIGNATURE(REL_NXEXCEPTION_VTABLE, "48 8D 05 ?? ?? ?? ?? 48 8B F1 48 89 01 8B FA 48 8B 89") // todo: replace CRASH_HANDLER_RCRA with REL_NXEXCEPTION_VTABLE
+
+	// note: find signatures for MSMM, MSMR1, MSM2
+	// unhooked asset funcs but called
+	MAKE_SIGNATURE(CREATE_ASSET_ID, "40 53 48 83 EC ?? 48 8B C2 48 8B D9 48 85 D2 74 ?? 80")
+	MAKE_SIGNATURE(RESOLVE_ASSET, "48 89 5C 24 ?? 57 48 83 EC 20 4D 63 C0")
+	MAKE_SIGNATURE(ALLOC_ASSET_RCRA, "48 89 5C 24 ?? 48 89 74 24 ?? 57 48 83 EC 20 F6 D1")
+	MAKE_SIGNATURE(COMMIT_ASSET_RCRA, "40 53 48 83 EC 20 69 D1 B0 00 00 00")
+	MAKE_SIGNATURE(IS_ASSET_VALID_RCRA, "40 53 48 83 EC 20 8B D9 0F B6 CA")
+	MAKE_SIGNATURE(SORT, "48 83 EC 48 4C 89 4C 24 ?? 48 8D 05")
+	MAKE_SIGNATURE(SORT_FUNC_RCRA, "41 8B 40 ?? 8B 4A ?? 45 0F B6 48")
+
+	// asset data vars
+	MAKE_SIGNATURE(LOAD_OPS, "48 8D 0D ?? ?? ?? ?? 0F 28 44 24 ?? 66 0F 7F 44 24 ?? E8 ?? ?? ?? ?? 8B C3")
+	MAKE_SIGNATURE(CREATE_ASSET_RCRA, "FF 15 ?? ?? ?? ?? 84 C0 75 ?? C7 47 ?? 04 00 00 00")
+	MAKE_SIGNATURE(CREATE_ASSET_DATA_RCRA, "4C 8B 05 ?? ?? ?? ?? 48 8B D6")
+	MAKE_SIGNATURE(DISABLE_DIRECTSTORAGE_RCRA, "40 38 2D ?? ?? ?? ?? 48 8B DA")
+	MAKE_SIGNATURE(LEGACY_TEXTURE, "0F B6 05 ?? ?? ?? ?? 48 8D 15 ?? ?? ?? ?? 88 83")
+	MAKE_SIGNATURE(ARCHIVEFS_VTABLE, "48 8D 05 ?? ?? ?? ?? 48 8D 4F ?? 48 89 07 48 89 5F")
+
+	// hooked asset funcs
+	MAKE_SIGNATURE(REL_SET_TEXT_AUDIO_LANGUAGE, "E8 ?? ?? ?? ?? 8B 0D ?? ?? ?? ?? E8 ?? ?? ?? ?? 0F B6 0D ?? ?? ?? ?? E8")
+	MAKE_SIGNATURE(PRELOAD_LOAD_OP_RCRA, "48 8B C4 44 89 48 ?? 48 89 48 ?? 53 41 55")
+	MAKE_SIGNATURE(IS_VALID_ASSET, "48 89 5C 24 ?? 48 89 6C 24 ?? 48 89 74 24 ?? 57 48 83 EC 20 48 8B DA 48 8B F9 E8 ?? ?? ?? ?? 8B F0")
+	MAKE_SIGNATURE(IS_INSTALLED_ASSET, "48 89 5C 24 ?? 48 89 6C 24 ?? 48 89 74 24 ?? 48 89 7C 24 ?? 41 56 48 83 EC 20 48 8B DA 48 8B F1")
+	MAKE_SIGNATURE(WINDOW_INIT_RCRA, "48 89 5C 24 ?? 48 89 74 24 ?? 57 48 83 EC 30 C7 44 24 ?? 00 00 80 41")
+
+	constexpr const uint32_t REL_ADDRESS_SIZE = 0x4;
+
+	constexpr const uint32_t DDL_HASH_MAP_ADDRESS = 0x6;
+	constexpr const uint32_t DDL_TYPE_LIST_ADDRESS = 0x3;
+	constexpr const uint32_t DDL_TYPE_LIST_COUNT_ADDRESS = 0xD;
+
+	constexpr const uint32_t NXEXCEPTION_VTABLE_ADDRESS = 0x3;
+	constexpr const uint32_t NXEXCEPTION_VTABLE_INIT = 0x1;
+
+	constexpr const uint32_t LOAD_OPS_ADDRESS = 0x3;
+	constexpr const uint32_t CREATE_ASSET_RCRA_ADDRESS = 0x2;
+	constexpr const uint32_t CREATE_ASSET_DATA_RCRA_ADDRESS = 0x3;
+	constexpr const uint32_t DISABLE_DIRECTSTORAGE_RCRA = 0x3;
+	constexpr const uint32_t LEGACY_TEXTURE_ADDRESS = 0x3;
+
+	constexpr const uint32_t ARCHIVEFS_VTABLE_ADDRESS = 0x3;
+	constexpr const uint32_t ARCHIVEFS_VTABLE_OPENFILE = 0x6;
+	constexpr const uint32_t ARCHIVEFS_VTABLE_READFILE = 0x7;
+	constexpr const uint32_t ARCHIVEFS_VTABLE_CLOSEFILE = 0x9;
+	constexpr const uint32_t ARCHIVEFS_VTABLE_MOUNT = 0x10;
+
+	constexpr const uint32_t REL_SET_TEXT_LANGUAGE_ADDRESS = 0x1;
+	constexpr const uint32_t REL_SET_AUDIO_LANGUAGE_ADDRESS = 0xC;
 } // namespace rivet_hook

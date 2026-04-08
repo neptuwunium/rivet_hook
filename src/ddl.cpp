@@ -168,34 +168,19 @@ namespace rivet_hook::ddl {
 		g_output << "[rivet] dumping DDL structures" << std::endl;
 		using namespace std::chrono_literals;
 
-		std::vector<uint8_t *> hm_pointers = scan(g_game_module, DDL_HASH_MAP_SIGNATURE);
-		std::vector<uint8_t *> tl_pointers = scan(g_game_module, DDL_TYPE_LIST_SIGNATURE);
-		if (hm_pointers.empty()) {
-			g_output << "[DDL] could not find hash map pointer, aborting" << std::endl;
+		std::vector<uint8_t *> hm_pointers = find_function("ddl hash map", g_game_module, DDL_HASH_MAP_SIGNATURE);
+		std::vector<uint8_t *> tl_pointers = find_function("ddl type list", g_game_module, DDL_TYPE_LIST_SIGNATURE);
+
+		if (hm_pointers.empty() || tl_pointers.empty()) {
 			g_output.flush();
 			return;
 		}
 
-		if (hm_pointers.size() > 1) {
-			g_output << "[DDL] too many hash map pointers, aborting" << std::endl;
+		if (hm_pointers.size() > 1 || tl_pointers.size() > 1) {
+			g_output << "[DDL] too many pointers, aborting" << std::endl;
 			g_output.flush();
 			return;
 		}
-
-		if (tl_pointers.empty()) {
-			g_output << "[DDL] could not find type list pointer, aborting" << std::endl;
-			g_output.flush();
-			return;
-		}
-
-		if (tl_pointers.size() > 1) {
-			g_output << "[DDL] too many type list pointers, aborting" << std::endl;
-			g_output.flush();
-			return;
-		}
-
-		g_output << "[rivet] found hash map pointer at " << std::hex << reinterpret_cast<uintptr_t>(hm_pointers[0]) << std::endl;
-		g_output << "[rivet] found type list pointer at " << std::hex << reinterpret_cast<uintptr_t>(tl_pointers[0]) << std::endl;
 
 		g_output << "[DDL] sleeping by 5 seconds to give the game a chance to set up..." << std::endl;
 
@@ -203,17 +188,9 @@ namespace rivet_hook::ddl {
 
 		g_output << "[DDL] dumping..." << std::endl;
 
-		const auto *hm_rip = hm_pointers[0] + 3 + 7;
-		const auto hm_rip_rel = reinterpret_cast<uint32_t *>(hm_pointers[0] + 6)[0];
-		const auto *type_hash_map = reinterpret_cast<const ddl_hash_map *>(hm_rip + hm_rip_rel);
-
-		auto *tl_rip = tl_pointers[0] + 7;
-		const auto tl_rip_rel = reinterpret_cast<uint32_t *>(tl_pointers[0] + 3)[0];
-		const auto **type_list = reinterpret_cast<const ddl_type_descriptor **>(tl_rip + tl_rip_rel);
-
-		auto *tlc_rip = tl_pointers[0] + 17;
-		auto tlc_rip_rel = reinterpret_cast<uint32_t *>(tl_pointers[0] + 13)[0];
-		const auto type_count = reinterpret_cast<uint32_t *>(tlc_rip + tlc_rip_rel)[0];
+		const auto *type_hash_map = reinterpret_cast<const ddl_hash_map *>(load_rel_var(hm_pointers[0], DDL_HASH_MAP_ADDRESS));
+		const auto **type_list = reinterpret_cast<const ddl_type_descriptor **>(load_rel_var(tl_pointers[0], DDL_TYPE_LIST_ADDRESS));
+		const auto type_count = *reinterpret_cast<const uint32_t *>(load_rel_var(tl_pointers[0], DDL_TYPE_LIST_COUNT_ADDRESS));
 
 		std::unordered_set<uint32_t> enum_ids;
 		std::unordered_set<uint32_t> bitset_ids;
@@ -400,20 +377,25 @@ namespace rivet_hook::ddl {
 	list_versions() -> void {
 		g_output << "[rivet] dumping versions" << std::endl;
 		using namespace std::chrono_literals;
-		using version_str_fn = const char *(*) (uint32_t index);
-		using version_hash_fn = uint32_t(*) (uint32_t index);
+		using version_str_t = const char *(*) (uint32_t index);
+		using version_hash_t = uint32_t(*) (uint32_t index);
 
-		std::vector<uint8_t *> function_ptrs = scan(g_game_module, VERSION_SIGNATURE);
-		std::vector<uint8_t *> hash_function_ptrs = scan(g_game_module, VERSION_HASH_SIGNATURE);
+		std::vector<uint8_t *> function_ptrs = find_function("version name function", g_game_module, VERSION_SIGNATURE);
+		std::vector<uint8_t *> hash_function_ptrs = find_function("version hash function", g_game_module, VERSION_HASH_SIGNATURE);
 
-		if (function_ptrs.size() != 1 && hash_function_ptrs.size() != 1) {
-			g_output << "[ver] could not find version pointer, aborting" << std::endl;
+		if (function_ptrs.empty() || hash_function_ptrs.empty()) {
 			g_output.flush();
 			return;
 		}
 
-		version_str_fn func1 = reinterpret_cast<version_str_fn>(function_ptrs[0]);
-		version_hash_fn func2 = reinterpret_cast<version_hash_fn>(hash_function_ptrs[0]);
+		if (function_ptrs.size() > 1 && hash_function_ptrs.size() > 1) {
+			g_output << "[ver] too many pointers, aborting" << std::endl;
+			g_output.flush();
+			return;
+		}
+
+		version_str_t func1 = reinterpret_cast<version_str_t>(function_ptrs[0]);
+		version_hash_t func2 = reinterpret_cast<version_hash_t>(hash_function_ptrs[0]);
 
 		int32_t index = 0;
 		nlohmann::json versions = nlohmann::json::array_t();
