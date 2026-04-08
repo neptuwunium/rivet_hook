@@ -787,7 +787,7 @@ namespace rivet_hook {
 		LOAD_FUNC_ADDRESS(game_resolve_asset, "resolve asset", resolve_asset_t, RESOLVE_ASSET_SIGNATURE);
 		LOAD_FUNC_ADDRESS(game_alloc_asset, "alloc asset", alloc_asset_t, ALLOC_ASSET_RCRA_SIGNATURE);
 		LOAD_FUNC_ADDRESS(game_commit_assets, "commit asset", commit_assets_t, COMMIT_ASSET_RCRA_SIGNATURE);
-		LOAD_FUNC_ADDRESS(game_is_asset_valid, "is valid asset", is_asset_valid_t, IS_VALID_ASSET_SIGNATURE);
+		LOAD_FUNC_ADDRESS(game_is_asset_valid, "is asset header valid", is_asset_valid_t, IS_ASSET_HEADER_VALID_RCRA_SIGNATURE);
 		LOAD_FUNC_ADDRESS(game_sort, "sort", sort_t, SORT_SIGNATURE);
 
 		LOAD_FUNC_ADDRESS_RAW(game_sort_op.func, "sort op", SORT_FUNC_RCRA_SIGNATURE);
@@ -818,7 +818,7 @@ namespace rivet_hook {
 
 		// asset io
 		create_hook("preload load op", g_game_module, PRELOAD_LOAD_OP_RCRA_SIGNATURE, reinterpret_cast<LPVOID>(&reimpl_load_ops), nullptr);
-		create_hook("is valid asset header", g_game_module, IS_ASSET_HEADER_VALID_RCRA_SIGNATURE, reinterpret_cast<LPVOID>(&is_valid_asset), reinterpret_cast<LPVOID *>(&game_is_valid_asset));
+		create_hook("is valid asset", g_game_module, IS_ASSET_VALID_RCRA_SIGNATURE, reinterpret_cast<LPVOID>(&is_valid_asset), reinterpret_cast<LPVOID *>(&game_is_valid_asset));
 		create_hook("is installed asset", g_game_module, IS_INSTALLED_ASSET_SIGNATURE, reinterpret_cast<LPVOID>(&is_installed_asset), reinterpret_cast<LPVOID *>(&game_is_installed_asset));
 
 		// loose io
