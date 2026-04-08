@@ -759,6 +759,12 @@ namespace rivet_hook {
 
 		load_mod_assets();
 
+		#define LOAD_FUNC_ADDRESS_RAW(var, name, ptr) \
+		if (var = find_address(name, g_game_module, ptr); !var) { \
+		g_output << "[loader] cannot initialize, " name " address is not found" << std::endl; \
+		return; \
+		}
+
 		#define LOAD_FUNC_ADDRESS(var, name, type, ptr) \
 		if (var = reinterpret_cast<type>(find_address(name, g_game_module, ptr)); !var) { \
 		g_output << "[loader] cannot initialize, " name " address is not found" << std::endl; \
@@ -784,7 +790,7 @@ namespace rivet_hook {
 		LOAD_FUNC_ADDRESS(game_is_asset_valid, "is valid asset", is_asset_valid_t, IS_VALID_ASSET_SIGNATURE);
 		LOAD_FUNC_ADDRESS(game_sort, "sort", sort_t, SORT_SIGNATURE);
 
-		LOAD_FUNC_ADDRESS(game_sort_op.func, "sort op", intptr_t, SORT_FUNC_RCRA_SIGNATURE);
+		LOAD_FUNC_ADDRESS_RAW(game_sort_op.func, "sort op", SORT_FUNC_RCRA_SIGNATURE);
 		game_sort_op.target = 0;
 
 		game_mount_archive = reinterpret_cast<mount_archive_t>(archivefs_vtable[ARCHIVEFS_VTABLE_MOUNT]);
