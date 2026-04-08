@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include <map>
 #include <string>
 #include <vector>
 
@@ -28,6 +29,8 @@ namespace rivet_hook {
 		bool log_asset_ids = false;
 		bool log_mod_access = false;
 		bool log_mod_state = false;
+		std::string fingerprint;
+		std::map<std::string, std::vector<intptr_t>> addresses;
 
 		static auto
 		load() -> Settings;

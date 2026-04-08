@@ -759,41 +759,61 @@ namespace rivet_hook {
 
 		load_mod_assets();
 
-		#define RVA(n) ((intptr_t) g_game_module + n - 0x140000000)
+		#define LOAD_FUNC_ADDRESS(var, name, type, ptr) \
+		if (var = reinterpret_cast<type>(find_address(name, g_game_module, ptr)); !var) { \
+		g_output << "[loader] cannot initialize, " name " address is not found" << std::endl; \
+		return; \
+		}
 
-		// todo: hook all of these up to signatures from signature.hpp
+		#define LOAD_VAR_ADDRESS(var, name, type, ptr, addr) \
+			if (var = reinterpret_cast<type>(load_rel_var(find_address(name, g_game_module, ptr), addr)); !var) { \
+				g_output << "[loader] cannot initialize, " name " address is not found" << std::endl; \
+				return; \
+			}
 
-		const auto * archivefs_vtable = reinterpret_cast<intptr_t*>(RVA(0x1432d02e8));
+		const auto * archivefs_vtable = static_cast<intptr_t*>(load_rel_var(find_address("archivefs", g_game_module, ARCHIVEFS_VTABLE_SIGNATURE), ARCHIVEFS_VTABLE_ADDRESS));
+		if (!archivefs_vtable) {
+			g_output << "[loader] cannot initialize, archivefs address is not found" << std::endl;
+			return;
+		}
 
 		// functions we need to call for reimpl_load_ops
-		game_resolve_asset = reinterpret_cast<resolve_asset_t>(RVA(0x141057420));
-		game_alloc_asset = reinterpret_cast<alloc_asset_t>(RVA(0x140fa2a80));
-		game_commit_assets = reinterpret_cast<commit_assets_t>(RVA(0x140fa2c00));
-		game_mount_archive = reinterpret_cast<mount_archive_t>(archivefs_vtable[ARCHIVEFS_VTABLE_MOUNT]);
-		game_is_asset_valid = reinterpret_cast<is_asset_valid_t>(RVA(0x14105a640));
-		game_sort = reinterpret_cast<sort_t>(RVA(0x141598f30));
-		game_sort_op.func = RVA(0x141058480);
+		LOAD_FUNC_ADDRESS(game_resolve_asset, "resolve asset", resolve_asset_t, RESOLVE_ASSET_SIGNATURE);
+		LOAD_FUNC_ADDRESS(game_alloc_asset, "alloc asset", alloc_asset_t, ALLOC_ASSET_RCRA_SIGNATURE);
+		LOAD_FUNC_ADDRESS(game_commit_assets, "commit asset", commit_assets_t, COMMIT_ASSET_RCRA_SIGNATURE);
+		LOAD_FUNC_ADDRESS(game_is_asset_valid, "is valid asset", is_asset_valid_t, IS_VALID_ASSET_SIGNATURE);
+		LOAD_FUNC_ADDRESS(game_sort, "sort", sort_t, SORT_SIGNATURE);
+
+		LOAD_FUNC_ADDRESS(game_sort_op.func, "sort op", intptr_t, SORT_FUNC_RCRA_SIGNATURE);
 		game_sort_op.target = 0;
 
+		game_mount_archive = reinterpret_cast<mount_archive_t>(archivefs_vtable[ARCHIVEFS_VTABLE_MOUNT]);
+		if (!game_mount_archive) {
+			g_output << "[loader] cannot initialize, mount archive address is not found" << std::endl;
+		}
+
 		// vars we need to read/write to for reimpl_load_ops
-		game_load_ops = reinterpret_cast<LoadOperation*>(RVA(0x14628fdc0));
+		LOAD_VAR_ADDRESS(game_load_ops, "load operations", LoadOperation*, LOAD_OPS_SIGNATURE, LOAD_OPS_ADDRESS);
 
 		// vars we need to call/read to for asset header creation
-		game_create_asset = reinterpret_cast<create_asset_t*>(RVA(0x14640fe18));
-		game_create_asset_data = reinterpret_cast<void*>(RVA(0x14640fe20));
+		LOAD_VAR_ADDRESS(game_create_asset, "create asset", create_asset_t*, CREATE_ASSET_RCRA_SIGNATURE, CREATE_ASSET_RCRA_ADDRESS);
+		LOAD_VAR_ADDRESS(game_create_asset_data, "create asset data", void*, CREATE_ASSET_DATA_RCRA_SIGNATURE, CREATE_ASSET_DATA_RCRA_ADDRESS);
 
 		// vars we need to overwrite to disable texture fencing
-		disable_directstorage = reinterpret_cast<bool*>(RVA(0x146798084));
-		legacy_texture_loading = reinterpret_cast<bool*>(RVA(0x1467c728b));
+		LOAD_VAR_ADDRESS(disable_directstorage, "disable directstorage", bool*, DISABLE_DIRECTSTORAGE_RCRA_SIGNATURE, DISABLE_DIRECTSTORAGE_RCRA_ADDRESS);
+		LOAD_VAR_ADDRESS(legacy_texture_loading, "legacy textures", bool*, LEGACY_TEXTURE_SIGNATURE, LEGACY_TEXTURE_ADDRESS);
 
 		// language tracking
-		create_hook("set text lang", reinterpret_cast<LPVOID>(RVA(0x14158e5a0)), reinterpret_cast<LPVOID>(&set_text_language), reinterpret_cast<LPVOID *>(&game_set_text_language));
-		create_hook("set audio lang", reinterpret_cast<LPVOID>(RVA(0x14158e550)), reinterpret_cast<LPVOID>(&set_audio_language), reinterpret_cast<LPVOID *>(&game_set_audio_language));
+		LPVOID set_text_lang, set_audio_lang;
+		LOAD_VAR_ADDRESS(set_text_lang, "set text lang", LPVOID, REL_SET_TEXT_AUDIO_LANGUAGE_SIGNATURE, REL_SET_TEXT_LANGUAGE_ADDRESS);
+		LOAD_VAR_ADDRESS(set_audio_lang, "set audio lang", LPVOID, REL_SET_TEXT_AUDIO_LANGUAGE_SIGNATURE, REL_SET_AUDIO_LANGUAGE_ADDRESS);
+		create_hook("set text lang", set_text_lang, reinterpret_cast<LPVOID>(&set_text_language), reinterpret_cast<LPVOID *>(&game_set_text_language));
+		create_hook("set audio lang", set_audio_lang, reinterpret_cast<LPVOID>(&set_audio_language), reinterpret_cast<LPVOID *>(&game_set_audio_language));
 
 		// asset io
-		create_hook("preload load op", reinterpret_cast<LPVOID>(RVA(0x1410599c0)), reinterpret_cast<LPVOID>(&reimpl_load_ops), nullptr);
-		create_hook("is valid asset", reinterpret_cast<LPVOID>(RVA(0x141059530)), reinterpret_cast<LPVOID>(&is_valid_asset), reinterpret_cast<LPVOID *>(&game_is_valid_asset));
-		create_hook("is installed asset", reinterpret_cast<LPVOID>(RVA(0x141059480)), reinterpret_cast<LPVOID>(&is_installed_asset), reinterpret_cast<LPVOID *>(&game_is_installed_asset));
+		create_hook("preload load op", g_game_module, PRELOAD_LOAD_OP_RCRA_SIGNATURE, reinterpret_cast<LPVOID>(&reimpl_load_ops), nullptr);
+		create_hook("is valid asset header", g_game_module, IS_ASSET_HEADER_VALID_RCRA_SIGNATURE, reinterpret_cast<LPVOID>(&is_valid_asset), reinterpret_cast<LPVOID *>(&game_is_valid_asset));
+		create_hook("is installed asset", g_game_module, IS_INSTALLED_ASSET_SIGNATURE, reinterpret_cast<LPVOID>(&is_installed_asset), reinterpret_cast<LPVOID *>(&game_is_installed_asset));
 
 		// loose io
 		create_hook("open file", reinterpret_cast<LPVOID>(archivefs_vtable[ARCHIVEFS_VTABLE_OPENFILE]), reinterpret_cast<LPVOID>(&open_file), reinterpret_cast<LPVOID *>(&game_open_file));
@@ -801,7 +821,7 @@ namespace rivet_hook {
 		create_hook("close file", reinterpret_cast<LPVOID>(archivefs_vtable[ARCHIVEFS_VTABLE_CLOSEFILE]), reinterpret_cast<LPVOID>(&close_file), reinterpret_cast<LPVOID *>(&game_close_file));
 
 		// needed to reset fencing a second time once the game starts.
-		create_hook("window init", reinterpret_cast<LPVOID>(RVA(0x141520370)), reinterpret_cast<LPVOID>(&window_init), reinterpret_cast<LPVOID *>(&game_window_init));
+		create_hook("window init", g_game_module, WINDOW_INIT_RCRA_SIGNATURE, reinterpret_cast<LPVOID>(&window_init), reinterpret_cast<LPVOID *>(&game_window_init));
 
 		// disable fencing
 		// NOTE: This bricks DirectStorage, need to find a workaround for "next gen" texture fencing.
