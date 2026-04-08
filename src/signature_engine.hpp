@@ -13,5 +13,6 @@
 #include "signature_types.hpp"
 
 namespace rivet_hook {
-	auto scan(HMODULE module, const hex_signature &signature) -> std::vector<uint8_t *>;
+	auto
+	scan(HMODULE module, const hex_signature &signature) -> std::vector<uint8_t *>;
 } // namespace rivet_hook

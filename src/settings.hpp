@@ -15,7 +15,7 @@ namespace rivet_hook {
 		bool enable_asset_loader = true;
 		std::vector<std::string> asset_paths = { "mods/default" };
 		bool load_renderdoc = false;
-		std::string renderdoc_path { "renderdoc.dll"};
+		std::string renderdoc_path { "renderdoc.dll" };
 		bool list_versions = false;
 		bool dump_ddl = false;
 		bool debug_ddl = false;
@@ -29,7 +29,9 @@ namespace rivet_hook {
 		bool log_mod_access = false;
 		bool log_mod_state = false;
 
-		static auto load() -> Settings;
-		auto save() const -> void;
+		static auto
+		load() -> Settings;
+		auto
+		save() const -> void;
 	};
 } // namespace rivet_hook

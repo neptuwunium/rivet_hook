@@ -2,37 +2,37 @@
 //
 // SPDX-License-Identifier: EUPL-1.2
 
-#include <unordered_map>
-#include <string>
 #include <algorithm>
 #include <filesystem>
+#include <string>
+#include <unordered_map>
 
-#include "runtime_loader.hpp"
 #include "runtime.hpp"
+#include "runtime_loader.hpp"
 #include "settings.hpp"
 #include "signature.hpp"
 
 #include <ranges>
 
 namespace rivet_hook {
-	constexpr uint64_t RIVET_SENTINEL = 0xffffffffffffff00;
+	constexpr uint64_t RIVET_SENTINEL = 0xffffffff'ffffff00;
 
 	struct MemoryFile {
-		const uint8_t* buffer = nullptr;
+		const uint8_t *buffer = nullptr;
 		HANDLE map = INVALID_HANDLE_VALUE;
 		HANDLE file = INVALID_HANDLE_VALUE;
 		size_t size = 0;
 		AssetLanguage language = AssetLanguage::None;
 		std::filesystem::path original_path;
 
-		explicit MemoryFile(const std::filesystem::path& path) : original_path(path) {
+		explicit MemoryFile(const std::filesystem::path &path): original_path(path) {
 			file = CreateFileW(path.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
 			if (file == INVALID_HANDLE_VALUE) {
 				g_output << "[io] cannot open " << path.string() << " got " << GetLastError() << std::endl;
 				return;
 			}
 
-			GetFileSizeEx(file, reinterpret_cast<LARGE_INTEGER*>(&size));
+			GetFileSizeEx(file, reinterpret_cast<LARGE_INTEGER *>(&size));
 
 			map = CreateFileMapping(file, nullptr, PAGE_READONLY, 0, 0, nullptr);
 			if (map == INVALID_HANDLE_VALUE) {
@@ -40,21 +40,24 @@ namespace rivet_hook {
 				return;
 			}
 
-			buffer = static_cast<const uint8_t*>(MapViewOfFile(map, FILE_MAP_READ, 0, 0, 0));
+			buffer = static_cast<const uint8_t *>(MapViewOfFile(map, FILE_MAP_READ, 0, 0, 0));
 			if (buffer == nullptr) {
 				g_output << "[io] cannot pin " << path.string() << " got " << GetLastError() << std::endl;
 				return;
 			}
 		}
 
-		MemoryFile(const MemoryFile&) = delete;
-		MemoryFile& operator=(const MemoryFile&) = delete;
+		MemoryFile(const MemoryFile &) = delete;
+		MemoryFile &
+		operator=(const MemoryFile &) = delete;
 
-		[[nodiscard]] auto valid() const -> bool {
+		[[nodiscard]] auto
+		valid() const -> bool {
 			return buffer != nullptr && map != INVALID_HANDLE_VALUE && file != INVALID_HANDLE_VALUE && size > 0;
 		}
 
-		auto close() -> void {
+		auto
+		close() -> void {
 			if (buffer != nullptr) {
 				UnmapViewOfFile(buffer);
 				buffer = nullptr;
@@ -125,14 +128,14 @@ namespace rivet_hook {
 	is_asset_valid_t game_is_asset_valid = nullptr;
 
 	create_asset_t *game_create_asset = nullptr;
-	void* game_create_asset_data = nullptr;
-	LoadOperation* game_load_ops = nullptr;
+	void *game_create_asset_data = nullptr;
+	LoadOperation *game_load_ops = nullptr;
 	SortFunc game_sort_op = {};
-	bool* legacy_texture_loading = nullptr;
-	bool* disable_directstorage = nullptr;
+	bool *legacy_texture_loading = nullptr;
+	bool *disable_directstorage = nullptr;
 
 	auto
-	create_asset_id(AssetId* asset_id, const char* asset_name) -> AssetId* {
+	create_asset_id(AssetId *asset_id, const char *asset_name) -> AssetId * {
 		const auto result = game_create_asset_id(asset_id, asset_name);
 
 		if (asset_name && *asset_name && asset_id) {
@@ -143,7 +146,7 @@ namespace rivet_hook {
 	}
 
 	auto
-	decode_url(const char* url, const unsigned int urlLen, char* decoded, unsigned int* decodedSize) -> void {
+	decode_url(const char *url, const unsigned int urlLen, char *decoded, unsigned int *decodedSize) -> void {
 		if (url != nullptr) {
 			g_output << "[cohtml] " << url << std::endl;
 		}
@@ -152,7 +155,7 @@ namespace rivet_hook {
 	}
 
 	auto
-	mgr_load_asset(const intptr_t self, const AssetId asset_id, const AssetId parent_asset_id, const char* asset_name, const intptr_t referencing_asset, const intptr_t unknown6,
+	mgr_load_asset(const intptr_t self, const AssetId asset_id, const AssetId parent_asset_id, const char *asset_name, const intptr_t referencing_asset, const intptr_t unknown6,
 				   const int32_t unknown7) -> intptr_t {
 		g_output << "[load asset] " << std::hex << asset_id << " ";
 
@@ -191,11 +194,11 @@ namespace rivet_hook {
 			return;
 		}
 
-		create_hook("cohtml", proc, reinterpret_cast<LPVOID>(decode_url), reinterpret_cast<LPVOID*>(&game_decode_url));
+		create_hook("cohtml", proc, reinterpret_cast<LPVOID>(decode_url), reinterpret_cast<LPVOID *>(&game_decode_url));
 	}
 
 	auto
-	find_mod_asset(const AssetId asset_id, AssetType type, AssetLanguage lang) -> MemoryFile* {
+	find_mod_asset(const AssetId asset_id, AssetType type, AssetLanguage lang) -> MemoryFile * {
 		if (lang >= AssetLanguage::Count || type >= AssetType::Count) {
 			return nullptr;
 		}
@@ -211,7 +214,7 @@ namespace rivet_hook {
 	}
 
 	auto
-	find_mod_asset(const AssetId asset_id, const AssetType type) -> MemoryFile* {
+	find_mod_asset(const AssetId asset_id, const AssetType type) -> MemoryFile * {
 		auto *mod_file = find_mod_asset(asset_id, type, text_language);
 		if (mod_file) {
 			return mod_file;
@@ -259,7 +262,8 @@ namespace rivet_hook {
 
 	auto
 	populate_mod_asset(const std::filesystem::path &path, const std::string &game_path, AssetId asset_id, AssetType type, AssetLanguage lang) -> void {
-		g_output << std::hex << "[loader] " << path.string() << " resolved to " << game_path << " with asset id " << asset_id << ", type " << static_cast<int32_t>(type) << ", language" << static_cast<int32_t>(lang) << std::endl;
+		g_output << std::hex << "[loader] " << path.string() << " resolved to " << game_path << " with asset id " << asset_id << ", type " << static_cast<int32_t>(type) << ", language"
+				 << static_cast<int32_t>(lang) << std::endl;
 
 		auto &mod_list = mod_files_combined[static_cast<int32_t>(lang)][static_cast<int32_t>(type)];
 
@@ -326,7 +330,7 @@ namespace rivet_hook {
 			AssetId asset_id = 0;
 			if (type == AssetType::Audio) {
 				try {
-					asset_id = 0xE000000000000000 | std::stoul(relative_path.stem().string());
+					asset_id = 0xE0000000'00000000 | std::stoul(relative_path.stem().string());
 				} catch (const std::exception &e) {
 					g_output << "could not parse asset id for path " << relative_path << ": " << e.what() << std::endl;
 					continue;
@@ -400,7 +404,7 @@ namespace rivet_hook {
 				} else {
 					if (type == AssetType::Audio) {
 						try {
-							asset_id = 0xE000000000000000 | std::stoul(relative_path.stem().string());
+							asset_id = 0xE0000000'00000000 | std::stoul(relative_path.stem().string());
 						} catch (const std::exception &e) {
 							g_output << "could not parse asset id for path " << relative_path << ": " << e.what() << std::endl;
 							continue;
@@ -454,9 +458,10 @@ namespace rivet_hook {
 	}
 
 	auto
-	open_file(const intptr_t self, AssetFile* file, const AssetId asset_id, AssetType type, const int32_t platform, const uint8_t manager_id) -> void {
+	open_file(const intptr_t self, AssetFile *file, const AssetId asset_id, AssetType type, const int32_t platform, const uint8_t manager_id) -> void {
 		if (g_settings.log_loose_io) {
-			g_output << "[loose][open ] " << std::hex << asset_id << " type: " << static_cast<int32_t>(type) << " manager: " << static_cast<uint32_t>(manager_id) << " status: " << file->status << " padding: " << file->padding << " data: " << file->data << " asset_id: " << file->asset_id << std::endl;
+			g_output << "[loose][open ] " << std::hex << asset_id << " type: " << static_cast<int32_t>(type) << " manager: " << static_cast<uint32_t>(manager_id) << " status: " << file->status
+					 << " padding: " << file->padding << " data: " << file->data << " asset_id: " << file->asset_id << std::endl;
 		}
 
 		if (type < AssetType::Count) {
@@ -479,9 +484,10 @@ namespace rivet_hook {
 	}
 
 	auto
-	read_file(const intptr_t self, AssetFile* file, char* buffer, const size_t offset, const size_t size, const int32_t priority, const int32_t unknown2) -> bool {
+	read_file(const intptr_t self, AssetFile *file, char *buffer, const size_t offset, const size_t size, const int32_t priority, const int32_t unknown2) -> bool {
 		if (g_settings.log_loose_io) {
-			g_output << "[loose][read ] offset: " << std::hex << offset << " size: " << size << " status: " << file->status << " padding: " << file->padding << " data: " << file->data << " asset_id: " << file->asset_id << std::endl;
+			g_output << "[loose][read ] offset: " << std::hex << offset << " size: " << size << " status: " << file->status << " padding: " << file->padding << " data: " << file->data
+					 << " asset_id: " << file->asset_id << std::endl;
 			g_output.flush();
 		}
 
@@ -506,7 +512,7 @@ namespace rivet_hook {
 	}
 
 	auto
-	close_file(const intptr_t self, AssetFile* file) -> void {
+	close_file(const intptr_t self, AssetFile *file) -> void {
 		if (g_settings.log_loose_io) {
 			g_output << "[loose][close] status: " << file->status << " padding: " << file->padding << " data: " << file->data << " asset_id: " << file->asset_id << std::endl;
 			g_output.flush();
@@ -520,13 +526,13 @@ namespace rivet_hook {
 	}
 
 	auto
-	reimpl_load_ops(ArchiveFileSystem* self, const AssetId * assetIds, const LoadMetadata * metadata, const int32_t assetCount) -> int64_t {
+	reimpl_load_ops(ArchiveFileSystem *self, const AssetId *assetIds, const LoadMetadata *metadata, const int32_t assetCount) -> int64_t {
 		if (assetCount <= 0) {
 			return 0;
 		}
 
 		int32_t loadIndex = 0;
-		for(int32_t i = 0; i < assetCount; ++i) {
+		for (int32_t i = 0; i < assetCount; ++i) {
 			LoadMetadata meta = metadata[i];
 			uint64_t assetId = assetIds[i];
 
@@ -552,7 +558,7 @@ namespace rivet_hook {
 					g_output << "[built] " << std::hex << assetId << " create header" << std::endl;
 				}
 
-				AssetHeader* header = game_alloc_asset(0, 1, assetId, &meta, static_cast<uint8_t>(mod_file->language));
+				AssetHeader *header = game_alloc_asset(0, 1, assetId, &meta, static_cast<uint8_t>(mod_file->language));
 
 				if (g_settings.log_mod_access && g_settings.log_mod_state) {
 					g_output << "[built] " << std::hex << assetId << " header created" << std::endl;
@@ -563,7 +569,7 @@ namespace rivet_hook {
 						g_output << "[built] " << std::hex << assetId << " check valid, ptr " << reinterpret_cast<intptr_t>(mod_file->buffer) << std::endl;
 					}
 
-					const auto magic = *reinterpret_cast<const uint32_t*>(mod_file->buffer);
+					const auto magic = *reinterpret_cast<const uint32_t *>(mod_file->buffer);
 					if (g_settings.log_mod_access && g_settings.log_mod_state) {
 						g_output << "[built] " << std::hex << assetId << " magic " << magic << std::endl;
 					}
@@ -629,7 +635,7 @@ namespace rivet_hook {
 				continue;
 			}
 
-			const FoundAsset * asset = nullptr;
+			const FoundAsset *asset = nullptr;
 			AssetLanguage selectedLanguage = audio_language;
 			if (meta.type == 0xE /* soundbank */) {
 				asset = game_resolve_asset(&self->toc, assetId, audio_language, AssetType::Built);
@@ -650,7 +656,7 @@ namespace rivet_hook {
 				selectedLanguage = AssetLanguage::None;
 			}
 
-			if(!asset || asset->header == -1) {
+			if (!asset || asset->header == -1) {
 				// here in case of crash becasue i haven't seen this yet
 				// there's 3 different ways it fails early prior to this so if it happens here something really bad happened
 
@@ -692,12 +698,12 @@ namespace rivet_hook {
 	}
 
 	auto
-	is_valid_asset(ArchiveFileSystem* self, const AssetId asset_id) -> bool {
+	is_valid_asset(ArchiveFileSystem *self, const AssetId asset_id) -> bool {
 		return game_is_valid_asset(self, asset_id) || has_mod_asset(asset_id);
 	}
 
 	auto
-	is_installed_asset(ArchiveFileSystem* self, const AssetId asset_id) -> bool {
+	is_installed_asset(ArchiveFileSystem *self, const AssetId asset_id) -> bool {
 		return game_is_installed_asset(self, asset_id) || has_mod_asset(asset_id);
 	}
 
@@ -823,4 +829,4 @@ namespace rivet_hook {
 			}
 		}
 	}
-}
+} // namespace rivet_hook

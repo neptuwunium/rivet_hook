@@ -12,7 +12,7 @@
 namespace rivet_hook::ddl {
 #pragma pack(push, 1)
 
-	using ddl_call_t = void* (void*);
+	using ddl_call_t = void *(void *);
 
 	struct ddl_type_info {
 		const char *name;
@@ -38,13 +38,13 @@ namespace rivet_hook::ddl {
 		uint32_t footer_unknown2;
 		uint64_t footer_unknown3;
 		uint64_t footer_unknown4;
-		ddl_call_t* constructor_ptr; // sets vtable
-		ddl_call_t* copy_ptr; // seems to copy data
-		ddl_call_t* init_defaults_ptr; // calls allocators
-		ddl_call_t* reset_defaults_ptr; // also calls deallocators
-		ddl_call_t* reset_field_ptr; // resets specific index
-		ddl_call_t* destructor_ptr; // calls deallocators
-		ddl_call_t* hash_test_ptr; // compares hashes?
+		ddl_call_t *constructor_ptr;	// sets vtable
+		ddl_call_t *copy_ptr;			// seems to copy data
+		ddl_call_t *init_defaults_ptr;	// calls allocators
+		ddl_call_t *reset_defaults_ptr; // also calls deallocators
+		ddl_call_t *reset_field_ptr;	// resets specific index
+		ddl_call_t *destructor_ptr;		// calls deallocators
+		ddl_call_t *hash_test_ptr;		// compares hashes?
 	};
 
 	struct ddl_type_info_ex_type_12 {
@@ -90,20 +90,23 @@ namespace rivet_hook::ddl {
 	};
 
 	struct ddl_runtime_str {
-		const char* value;
+		const char *value;
 		int32_t length;
 		uint32_t hash;
 	};
 
 	struct ddl_runtime_file {
-		const char* value;
+		const char *value;
 		int32_t length;
 		uint64_t asset_id;
 	};
 
 #pragma pack(pop)
 
-	auto get_ddl_field(nlohmann::json &field, const uint8_t* object, uint32_t offset, uint8_t array_type, uint8_t field_type, int32_t index, const ddl_type_info *type_ptr, int32_t type_index) -> void;
-	auto dump_ddl() -> void;
-	auto list_versions() -> void;
+	auto
+	get_ddl_field(nlohmann::json &field, const uint8_t *object, uint32_t offset, uint8_t array_type, uint8_t field_type, int32_t index, const ddl_type_info *type_ptr, int32_t type_index) -> void;
+	auto
+	dump_ddl() -> void;
+	auto
+	list_versions() -> void;
 } // namespace rivet_hook::ddl

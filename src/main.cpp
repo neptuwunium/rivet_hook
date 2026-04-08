@@ -7,7 +7,6 @@
 
 #include "runtime.hpp"
 
-
 auto APIENTRY
 DllMain(HMODULE, const DWORD reason, LPVOID) -> BOOL {
 	if (reason == DLL_PROCESS_ATTACH) {

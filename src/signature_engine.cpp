@@ -5,15 +5,15 @@
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 
-#include <psapi.h>
 #include <algorithm>
 #include <array>
 #include <cstdint>
+#include <psapi.h>
 #include <string_view>
 #include <vector>
 
-#include "signature_types.hpp"
 #include "signature_engine.hpp"
+#include "signature_types.hpp"
 
 #pragma clang diagnostic push
 #pragma ide diagnostic ignored "cppcoreguidelines-pro-bounds-pointer-arithmetic"

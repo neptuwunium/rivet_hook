@@ -7,12 +7,12 @@
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 
-#include <vector>
-#include <string_view>
 #include <fstream>
+#include <string_view>
+#include <vector>
 
-#include "signature_types.hpp"
 #include "settings.hpp"
+#include "signature_types.hpp"
 
 namespace rivet_hook {
 	extern std::ofstream g_output;
@@ -20,7 +20,7 @@ namespace rivet_hook {
 	extern HMODULE g_game_module;
 
 	auto
-	load_rel_var(uint8_t* ptr, int rel_address) -> void*;
+	load_rel_var(uint8_t *ptr, int rel_address) -> void *;
 
 	auto
 	find_function(const std::string_view &name, HMODULE game, const hex_signature &signature) -> std::vector<uint8_t *>;
@@ -32,7 +32,9 @@ namespace rivet_hook {
 	create_hook(const std::string_view &name, HMODULE game, const hex_signature &signature, LPVOID detour, LPVOID *original, size_t limit = 1, int select = 0) -> void;
 
 	namespace runtime {
-		auto init() -> void;
-		auto fini() -> void;
+		auto
+		init() -> void;
+		auto
+		fini() -> void;
 	} // namespace runtime
 } // namespace rivet_hook

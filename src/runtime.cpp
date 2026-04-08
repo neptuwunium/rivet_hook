@@ -3,18 +3,18 @@
 // SPDX-License-Identifier: EUPL-1.2
 
 #include <chrono>
+#include <cstdio>
 #include <fstream>
 #include <memory>
 #include <ostream>
 #include <thread>
-#include <cstdio>
 
 #include "ddl.hpp"
 #include "runtime.hpp"
+#include "runtime_loader.hpp"
 #include "settings.hpp"
 #include "signature.hpp"
 #include "signature_engine.hpp"
-#include "runtime_loader.hpp"
 
 #include <MinHook.h>
 
@@ -35,13 +35,13 @@ namespace rivet_hook {
 
 #pragma clang diagnostic push
 #pragma ide diagnostic ignored "cppcoreguidelines-pro-bounds-pointer-arithmetic"
-	using context_log_t = const char *(*)(const char *, const char *);
+	using context_log_t = const char *(*) (const char *, const char *);
 	context_log_t fwd_context_log = nullptr;
 	std::string last_context;
 	std::string last_message;
 
 	auto
-	find_function(const std::string_view &name, const HMODULE game, const hex_signature &signature) -> std::vector<uint8_t *>{
+	find_function(const std::string_view &name, const HMODULE game, const hex_signature &signature) -> std::vector<uint8_t *> {
 		g_output << "[rivet] searching for " << name << " pointer" << std::endl;
 		auto pointers = scan(game, signature);
 
@@ -54,7 +54,7 @@ namespace rivet_hook {
 	}
 
 	auto
-	load_rel_var(uint8_t* ptr, const int rel_address) -> void* {
+	load_rel_var(uint8_t *ptr, const int rel_address) -> void * {
 		if (ptr == nullptr) {
 			return nullptr;
 		}
@@ -104,11 +104,18 @@ namespace rivet_hook {
 		create_hook(name, pointers[select], detour, original);
 	}
 
-	auto null_func() -> void { }
+	auto
+	null_func() -> void { }
 
-	auto return_true() -> bool { return true; }
+	auto
+	return_true() -> bool {
+		return true;
+	}
 
-	auto return_false() -> bool { return false; }
+	auto
+	return_false() -> bool {
+		return false;
+	}
 
 	auto
 	context_log(const char *context, const char *message) -> const char * {
@@ -133,7 +140,7 @@ namespace rivet_hook {
 			va_start(args, message);
 			const auto buffer_size = vsnprintf(nullptr, 0, message, args) + 1;
 			const auto buffer = std::make_unique<char[]>(buffer_size); // NOLINT(*-avoid-c-arrays)
-			vsnprintf(buffer.get(), buffer_size, message, args); // NOLINT(*-err33-c)
+			vsnprintf(buffer.get(), buffer_size, message, args);	   // NOLINT(*-err33-c)
 			va_end(args);
 			const std::string buffer_str(buffer.get());
 			g_output << "[log] " << buffer_str;
@@ -149,7 +156,8 @@ namespace rivet_hook {
 #pragma clang diagnostic pop
 
 	namespace runtime {
-		auto init() -> void {
+		auto
+		init() -> void {
 			// this runs on the main thread
 
 			g_output.open("./rivet.log");
@@ -214,7 +222,8 @@ namespace rivet_hook {
 			g_output.flush();
 		}
 
-		auto fini() -> void {
+		auto
+		fini() -> void {
 			g_output << "[rivet] fini" << std::endl;
 
 			if (g_renderdoc != nullptr) {

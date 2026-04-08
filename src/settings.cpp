@@ -7,15 +7,15 @@
 
 #include "settings.hpp"
 
-#define LOAD_SETTING_EX(group, type, name, var_name) \
-	if (tbl.contains(group) && tbl.at(group).is_table()) { \
+#define LOAD_SETTING_EX(group, type, name, var_name)                                 \
+	if (tbl.contains(group) && tbl.at(group).is_table()) {                           \
 		settings.name = toml::find_or<type>(tbl.at(group), var_name, settings.name); \
 	}
 
 #define LOAD_SETTING(group, type, name) LOAD_SETTING_EX(group, type, name, #name)
 
 #define SAVE_SETTING_EX(group, name, var_name, comment) \
-	tbl[group][var_name] = name; \
+	tbl[group][var_name] = name;                        \
 	tbl[group].at(var_name).comments().push_back(" " comment)
 
 #define SAVE_SETTING(group, name, comment) SAVE_SETTING_EX(group, name, #name, comment)
@@ -48,7 +48,7 @@ rivet_hook::Settings::load() -> Settings {
 		LOAD_SETTING_EX("log", bool, log_loose_io, "loose_io");
 		LOAD_SETTING_EX("log", bool, log_asset_opens, "asset_io");
 		LOAD_SETTING_EX("log", bool, log_asset_ids, "id");
-	} catch(const std::exception&) {
+	} catch (const std::exception &) {
 		// ignored
 	}
 
