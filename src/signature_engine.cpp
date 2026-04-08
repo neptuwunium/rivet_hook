@@ -19,8 +19,8 @@
 #pragma ide diagnostic ignored "cppcoreguidelines-pro-bounds-pointer-arithmetic"
 
 auto
-rivet_hook::scan(const HMODULE module, const hex_signature &signature) -> std::vector<uint8_t *> {
-	std::vector<uint8_t *> results;
+rivet_hook::scan(const HMODULE module, const hex_signature &signature) -> std::vector<intptr_t> {
+	std::vector<intptr_t> results;
 
 	MODULEINFO module_info;
 	if (!GetModuleInformation(GetCurrentProcess(), module, &module_info, sizeof(module_info))) {
@@ -34,7 +34,7 @@ rivet_hook::scan(const HMODULE module, const hex_signature &signature) -> std::v
 	while (cur < module_end) {
 		// get the memory information
 		MEMORY_BASIC_INFORMATION mem;
-		if ((VirtualQuery(cur, &mem, sizeof(mem)) == 0u) || mem.State != MEM_COMMIT || ((mem.Protect & PAGE_GUARD) != 0u)) {
+		if (VirtualQuery(cur, &mem, sizeof(mem)) == 0u || mem.State != MEM_COMMIT || (mem.Protect & PAGE_GUARD) != 0u) {
 			break;
 		}
 
@@ -42,9 +42,9 @@ rivet_hook::scan(const HMODULE module, const hex_signature &signature) -> std::v
 		auto *end = begin + mem.RegionSize;
 
 		// search for the signature
-		uint8_t *found = std::search(begin, end, signature.signature.begin(), signature.signature.begin() + signature.size);
+		auto found = std::search(begin, end, signature.signature.begin(), signature.signature.begin() + signature.size);
 		while (found < end && found >= begin) {
-			results.push_back(found);
+			results.push_back(reinterpret_cast<intptr_t>(found));
 			found = std::search(found + signature.size, end, signature.signature.begin(), signature.signature.begin() + signature.size);
 		}
 

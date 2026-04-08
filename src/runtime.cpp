@@ -25,7 +25,6 @@ namespace {
 	HMODULE g_renderdoc = nullptr;
 	bool g_minhook_initialized = false;
 	std::thread g_ddl_dump_thread;
-	rivet_hook::AssetLoader loader;
 } // namespace
 
 namespace rivet_hook {
@@ -41,7 +40,7 @@ namespace rivet_hook {
 	std::string last_message;
 
 	auto
-	find_function(const std::string_view &name, const HMODULE game, const hex_signature &signature) -> std::vector<uint8_t *> {
+	find_addresses(const std::string_view &name, const HMODULE game, const hex_signature &signature) -> std::vector<intptr_t> {
 		g_output << "[rivet] searching for " << name << " pointer" << std::endl;
 		auto pointers = scan(game, signature);
 
@@ -50,16 +49,38 @@ namespace rivet_hook {
 			return {};
 		}
 
+		g_output << "[rivet] found " << pointers.size() << " " << name << " pointers" << std::dec << std::endl;
+
 		return pointers;
 	}
 
 	auto
-	load_rel_var(uint8_t *ptr, const int rel_address) -> void * {
-		if (ptr == nullptr) {
+	find_address(const std::string_view &name, const HMODULE game, const hex_signature &signature, const size_t limit, const int select) -> intptr_t {
+		const auto pointers = find_addresses(name, game, signature);
+
+		if (pointers.empty()) {
+			return 0;
+		}
+
+		if (pointers.size() > limit) {
+			g_output << "[rivet] found " << pointers.size() << " " << name << " pointers, too many. aborting" << std::endl;
+			return 0;
+		}
+
+		const auto pointer = pointers[select];
+
+		g_output << "[rivet] found " << name << " pointer at " << std::hex << pointer << std::dec << std::endl;
+
+		return pointer;
+	}
+
+	auto
+	load_rel_var(const intptr_t ptr, const int rel_address) -> void * {
+		if (ptr == 0) {
 			return nullptr;
 		}
 
-		const auto rip = ptr + rel_address + REL_ADDRESS_SIZE;
+		const auto rip = reinterpret_cast<uint8_t*>(ptr) + rel_address + REL_ADDRESS_SIZE;
 		const auto target = *reinterpret_cast<uint32_t *>(ptr + rel_address);
 		return rip + target;
 	}
@@ -91,17 +112,12 @@ namespace rivet_hook {
 
 	auto
 	create_hook(const std::string_view &name, const HMODULE game, const hex_signature &signature, LPVOID detour, LPVOID *original, const size_t limit, const int select) -> void {
-		const auto pointers = find_function(name, game, signature);
-		if (pointers.empty()) {
+		const auto pointer = find_address(name, game, signature, limit, select);
+		if (pointer == 0) {
 			return;
 		}
 
-		if (pointers.size() > limit) {
-			g_output << "[rivet] found " << pointers.size() << " " << name << " pointers, too many. aborting" << std::endl;
-			return;
-		}
-
-		create_hook(name, pointers[select], detour, original);
+		create_hook(name, reinterpret_cast<LPVOID>(pointer), detour, original);
 	}
 
 	auto
@@ -172,11 +188,13 @@ namespace rivet_hook {
 			}
 
 			if (g_settings.suppress_crash_handler) {
-				// todo: use vtable method
-				create_hook("crash handler", g_game_module, CRASH_HANDLER_RCRA_SIGNATURE, reinterpret_cast<LPVOID>(&null_func), nullptr);
+				const auto nxe_vtable = load_rel_var(find_address("nxexception", g_game_module, REL_NXEXCEPTION_VTABLE_SIGNATURE), NXEXCEPTION_VTABLE_ADDRESS);
+				const auto crash_handler = static_cast<void**>(nxe_vtable)[NXEXCEPTION_VTABLE_INIT];
+
+				create_hook("crash handler", crash_handler, reinterpret_cast<LPVOID>(&null_func), nullptr);
 			}
 
-			loader.init();
+			AssetLoader::init();
 
 			if (g_settings.load_renderdoc) {
 				g_output << "[rivet] loading renderdoc" << std::endl;
@@ -231,7 +249,7 @@ namespace rivet_hook {
 				FreeLibrary(g_renderdoc);
 			}
 
-			loader.fini();
+			AssetLoader::fini();
 
 			if (g_ddl_dump_thread.joinable()) {
 				g_ddl_dump_thread.join();

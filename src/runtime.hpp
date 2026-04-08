@@ -20,10 +20,13 @@ namespace rivet_hook {
 	extern HMODULE g_game_module;
 
 	auto
-	load_rel_var(uint8_t *ptr, int rel_address) -> void *;
+	load_rel_var(intptr_t ptr, int rel_address) -> void *;
 
 	auto
-	find_function(const std::string_view &name, HMODULE game, const hex_signature &signature) -> std::vector<uint8_t *>;
+	find_addresses(const std::string_view &name, HMODULE game, const hex_signature &signature) -> std::vector<intptr_t>;
+
+	auto
+	find_address(const std::string_view &name, HMODULE game, const hex_signature &signature, size_t limit = 1, int select = 0) -> intptr_t;
 
 	auto
 	create_hook(const std::string_view &name, LPVOID pointer, LPVOID detour, LPVOID *original) -> void;

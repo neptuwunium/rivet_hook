@@ -170,16 +170,10 @@ namespace rivet_hook::ddl {
 		g_output << "[rivet] dumping DDL structures" << std::endl;
 		using namespace std::chrono_literals;
 
-		std::vector<uint8_t *> hm_pointers = find_function("ddl hash map", g_game_module, DDL_HASH_MAP_SIGNATURE);
-		std::vector<uint8_t *> tl_pointers = find_function("ddl type list", g_game_module, DDL_TYPE_LIST_SIGNATURE);
+		const auto hm_pointer = find_address("ddl hash map", g_game_module, DDL_HASH_MAP_SIGNATURE);
+		const auto tl_pointer = find_address("ddl type list", g_game_module, DDL_TYPE_LIST_SIGNATURE);
 
-		if (hm_pointers.empty() || tl_pointers.empty()) {
-			g_output.flush();
-			return;
-		}
-
-		if (hm_pointers.size() > 1 || tl_pointers.size() > 1) {
-			g_output << "[DDL] too many pointers, aborting" << std::endl;
+		if (hm_pointer == 0 || tl_pointer == 0) {
 			g_output.flush();
 			return;
 		}
@@ -190,9 +184,9 @@ namespace rivet_hook::ddl {
 
 		g_output << "[DDL] dumping..." << std::endl;
 
-		const auto *type_hash_map = static_cast<const ddl_hash_map *>(load_rel_var(hm_pointers[0], DDL_HASH_MAP_ADDRESS));
-		const auto **type_list = static_cast<const ddl_type_descriptor **>(load_rel_var(tl_pointers[0], DDL_TYPE_LIST_ADDRESS));
-		const auto type_count = *static_cast<const uint32_t *>(load_rel_var(tl_pointers[0], DDL_TYPE_LIST_COUNT_ADDRESS));
+		const auto *type_hash_map = static_cast<const ddl_hash_map *>(load_rel_var(hm_pointer, DDL_HASH_MAP_ADDRESS));
+		const auto **type_list = static_cast<const ddl_type_descriptor **>(load_rel_var(tl_pointer, DDL_TYPE_LIST_ADDRESS));
+		const auto type_count = *static_cast<const uint32_t *>(load_rel_var(tl_pointer, DDL_TYPE_LIST_COUNT_ADDRESS));
 
 		std::unordered_set<uint32_t> enum_ids;
 		std::unordered_set<uint32_t> bitset_ids;
@@ -379,22 +373,16 @@ namespace rivet_hook::ddl {
 		using version_str_t = const char *(*) (uint32_t index);
 		using version_hash_t = uint32_t (*)(uint32_t index);
 
-		std::vector<uint8_t *> function_ptrs = find_function("version name function", g_game_module, VERSION_SIGNATURE);
-		std::vector<uint8_t *> hash_function_ptrs = find_function("version hash function", g_game_module, VERSION_HASH_SIGNATURE);
+		auto function_ptr = find_address("version name function", g_game_module, VERSION_SIGNATURE);
+		auto hash_function_ptr = find_address("version hash function", g_game_module, VERSION_HASH_SIGNATURE);
 
-		if (function_ptrs.empty() || hash_function_ptrs.empty()) {
+		if (function_ptr == 0 || hash_function_ptr == 0) {
 			g_output.flush();
 			return;
 		}
 
-		if (function_ptrs.size() > 1 && hash_function_ptrs.size() > 1) {
-			g_output << "[ver] too many pointers, aborting" << std::endl;
-			g_output.flush();
-			return;
-		}
-
-		auto func1 = reinterpret_cast<version_str_t>(function_ptrs[0]);
-		auto func2 = reinterpret_cast<version_hash_t>(hash_function_ptrs[0]);
+		auto func1 = reinterpret_cast<version_str_t>(function_ptr);
+		auto func2 = reinterpret_cast<version_hash_t>(hash_function_ptr);
 
 		int32_t index = 0;
 		nlohmann::json versions = nlohmann::json::array_t();

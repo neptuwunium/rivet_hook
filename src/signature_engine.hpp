@@ -14,5 +14,5 @@
 
 namespace rivet_hook {
 	auto
-	scan(HMODULE module, const hex_signature &signature) -> std::vector<uint8_t *>;
+	scan(HMODULE module, const hex_signature &signature) -> std::vector<intptr_t>;
 } // namespace rivet_hook

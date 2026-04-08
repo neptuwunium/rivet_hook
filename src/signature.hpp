@@ -21,8 +21,7 @@ namespace rivet_hook {
 	MAKE_SIGNATURE(LOAD_ASSET, "48 89 54 24 ?? 53 56 57 41 55 41 56 48 83 ?? ?? 48") // note: only hooked for path logging
 
 	// util
-	MAKE_SIGNATURE(CRASH_HANDLER_RCRA, "40 53 48 83 ec 20 80 79 38 00 48 8b d9 75 ?? e8 ?? 00 00 00 48 8d")
-	MAKE_SIGNATURE(REL_NXEXCEPTION_VTABLE, "48 8D 05 ?? ?? ?? ?? 48 8B F1 48 89 01 8B FA 48 8B 89") // todo: replace CRASH_HANDLER_RCRA with REL_NXEXCEPTION_VTABLE
+	MAKE_SIGNATURE(REL_NXEXCEPTION_VTABLE, "48 8D 05 ?? ?? ?? ?? 48 8B F1 48 89 01 8B FA 48 8B 89")
 
 	// note: find signatures for MSMM, MSMR1, MSM2
 	// unhooked asset funcs but called

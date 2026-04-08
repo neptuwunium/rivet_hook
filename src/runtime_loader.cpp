@@ -737,9 +737,9 @@ namespace rivet_hook {
 		}
 		runtime_loader_ready = true;
 
-		if (const auto create_asset_id_ptrs = find_function("asset ids", g_game_module, CREATE_ASSET_ID_SIGNATURE); !create_asset_id_ptrs.empty()) {
+		if (const auto create_asset_id_ptrs = find_addresses("asset ids", g_game_module, CREATE_ASSET_ID_SIGNATURE); !create_asset_id_ptrs.empty()) {
 			if (g_settings.log_asset_ids) {
-				create_hook("asset ids", create_asset_id_ptrs[0], reinterpret_cast<LPVOID>(&create_asset_id), reinterpret_cast<LPVOID *>(&game_create_asset_id));
+				create_hook("asset ids", reinterpret_cast<LPVOID>(create_asset_id_ptrs[0]), reinterpret_cast<LPVOID>(&create_asset_id), reinterpret_cast<LPVOID *>(&game_create_asset_id));
 			} else {
 				game_create_asset_id = reinterpret_cast<create_asset_id_t>(create_asset_id_ptrs[0]);
 			}
