@@ -15,7 +15,7 @@ check out the [rivet repo](https://github.com/neptuwunium/rivet) for research.
 - Download `rivet_hook.zip` from the [latest release](https://github.com/neptuwunium/rivet_hook/releases/), and extract.
 
 - Copy `hid.dll` to the game installation folder.
-If the game crashes, copy `hid_win10.dll` instead **and rename it to `hid.dll`.
+If the game crashes, copy `hid_win10.dll` instead **_and rename it to `hid.dll`._**
 
 - Copy `rivet_hook.dll` to the game installation folder.
 
@@ -24,7 +24,7 @@ If the game crashes, copy `hid_win10.dll` instead **and rename it to `hid.dll`.
 - Run the game once, it should not crash. Exit once you get to the main menu.
 This is only done so rivet_hook can save the settings file.
 
-- Modify `rivet_hook.toml` in the game installation folder as needed.
+- Modify `rivet.toml` in the game installation folder as needed.
 
 ## Installing Mods
 
@@ -54,13 +54,15 @@ If I am installing a mod that has the folder path `mods/restore weapons`, it wou
 paths = ["mods/default", "mods/restore weapons"]
 ```
 
+with the `info.json` file being present in `mods/restore weapons`
+
 ## Building
 
 Building requires [meson](https://mesonbuild.com/Getting-meson.html) 
 
 Windows: Use the Visual Studio developer command prompt.
 
-Linux: pass `--cross-file=../src/x86_64-w64-mingw32.txt` to the `meson setup` command. 
+Linux: pass `--cross-file=src/x86_64-w64-mingw32.txt` to the `meson setup` command. 
 This requires mingw64 and wine to be installed.
 
 ### HID Loader Proxy
