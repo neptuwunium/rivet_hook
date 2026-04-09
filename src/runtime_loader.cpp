@@ -338,7 +338,7 @@ namespace rivet_hook {
 			} else {
 				if (auto first_dir = *relative_path.begin(); first_dir == "unknown") {
 					try {
-						asset_id = std::stoull(relative_path.stem().string());
+						asset_id = std::stoull(relative_path.stem().string(), nullptr, 16);
 					} catch (const std::exception &e) {
 						g_output << "could not parse asset id for path " << relative_path << ": " << e.what() << std::endl;
 						continue;
@@ -357,7 +357,7 @@ namespace rivet_hook {
 	}
 
 	auto
-	load_mod_assets_common(const std::filesystem::path &base_dir) -> void {
+	load_mod_assets_overstrike(const std::filesystem::path &base_dir) -> void {
 		// 0/... -> ... (built, none)
 		// 1/... -> ... (texture, none)
 		// 8/... -> ... (built, us)
@@ -396,22 +396,13 @@ namespace rivet_hook {
 				AssetId asset_id = 0;
 				if (relative_path.extension() == "") {
 					try {
-						asset_id = std::stoull(relative_path.filename().string());
+						asset_id = std::stoull(relative_path.filename().string(), nullptr, 16);
 					} catch (const std::exception &e) {
 						g_output << "could not parse asset id for path " << relative_path << ": " << e.what() << std::endl;
 						continue;
 					}
 				} else {
-					if (type == AssetType::Audio) {
-						try {
-							asset_id = 0xE0000000'00000000 | std::stoul(relative_path.stem().string());
-						} catch (const std::exception &e) {
-							g_output << "could not parse asset id for path " << relative_path << ": " << e.what() << std::endl;
-							continue;
-						}
-					} else {
-						game_create_asset_id(&asset_id, relative_path.string().c_str());
-					}
+					game_create_asset_id(&asset_id, relative_path.string().c_str());
 				}
 
 				populate_mod_asset(mod_path, relative_path.string(), asset_id, type, language);
@@ -436,8 +427,8 @@ namespace rivet_hook {
 			}
 
 			if (std::filesystem::exists(path / "info.json")) {
-				g_output << "[loader] mod path " << entry << " is common format." << std::endl;
-				load_mod_assets_common(path);
+				g_output << "[loader] mod path " << entry << " is overstrike format." << std::endl;
+				load_mod_assets_overstrike(path);
 			} else {
 				g_output << "[loader] mod path " << entry << " is rivet format." << std::endl;
 				load_mod_assets_rivet(path);
