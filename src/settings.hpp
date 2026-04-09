@@ -15,6 +15,7 @@ namespace rivet_hook {
 		bool suppress_crash_handler = true;
 		bool enable_asset_loader = true;
 		std::vector<std::string> asset_paths = { "mods/default" };
+		bool force_legacy_textures = true;
 		bool load_renderdoc = false;
 		std::string renderdoc_path { "renderdoc.dll" };
 		bool list_versions = false;

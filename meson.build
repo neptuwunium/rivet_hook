@@ -45,6 +45,14 @@ if not compiler.check_header('toml.hpp')
     toml11_dep = dependency('toml11', version: '>= 4.4.0')
 endif
 
+dstorage_path = meson.current_source_dir() + '/dstorage'
+dstorage_dep = declare_dependency(
+    include_directories: include_directories('dstorage/include'),
+    dependencies: [
+        compiler.find_library('dstorage', dirs: dstorage_path + '/lib', required: true)
+    ]
+)
+
 rivet_hook = shared_library('rivet_hook', [
         'src/ddl.cpp',
         'src/main.cpp',
@@ -58,6 +66,7 @@ rivet_hook = shared_library('rivet_hook', [
         minhook_dep,
         nlohmann_json_dep,
         toml11_dep,
+        dstorage_dep,
     ],
     name_prefix: '',
     cpp_args: cpp_args

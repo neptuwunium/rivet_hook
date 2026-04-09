@@ -71,4 +71,6 @@ namespace rivet_hook {
 
 	constexpr uint32_t REL_SET_TEXT_LANGUAGE_ADDRESS = 0x1;
 	constexpr uint32_t REL_SET_AUDIO_LANGUAGE_ADDRESS = 0xC;
+
+	constexpr uint32_t DSTORAGEQUEUE_VTABLE_ENQUEUE_REQUEST = 0x3;
 } // namespace rivet_hook
