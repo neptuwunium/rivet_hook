@@ -4,7 +4,7 @@ SPDX-FileCopyrightText: 2025-2026 Neptuwunium
 SPDX-License-Identifier: EUPL-1.2
 -->
 
-# ![rivet icon](Resources/icon32.png) rivet_hook
+# ![rivet icon](Resources/icon32.png) rivet_hook [![Build](https://github.com/neptuwunium/rivet_hook/actions/workflows/build.yml/badge.svg)](https://github.com/neptuwunium/rivet_hook/actions/workflows/build.yml)
 
 rivet_hook is a multipurpose modding framework for luna engine, specializing on rift apart
 

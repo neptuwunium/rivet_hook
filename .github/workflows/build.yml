@@ -1,8 +1,8 @@
-name: Build Hook
+name: Build
 
 on:
   push:
-    branches: [ hook ]
+    branches: [ develop ]
 
 jobs:
   build:
