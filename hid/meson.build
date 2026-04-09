@@ -23,7 +23,7 @@ if not add_languages(asm_compiler, native: false, required: true)
     error(asm_compiler + ' not available')
 endif
 
-shared_library('hid_win11', [
+shared_library('hid', [
         'src/main.cpp',
         'src/trampoline.' + ext
     ],
