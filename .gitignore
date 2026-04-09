@@ -29,6 +29,7 @@
 *.la
 *.a
 *.lib
+!dstorage/lib/dstorage.lib
 
 # Executables
 *.exe
