@@ -43,7 +43,7 @@ namespace rivet_hook {
 
 		if (const auto fingerprint = std::format("{}:{}#{}", headers->OptionalHeader.AddressOfEntryPoint, headers->OptionalHeader.SizeOfImage, headers->FileHeader.TimeDateStamp);
 			fingerprint != settings.fingerprint) {
-			g_output << "[rivet] game version mismatch, invalidating pointers" << std::endl;
+			g_output << "[rivet] game version mismatch, invalidating pointers\n";
 			settings.fingerprint = fingerprint;
 			return false;
 		}
@@ -79,6 +79,7 @@ namespace rivet_hook {
 			LOAD_SETTING_EX("log", bool, log_loose_io, "loose_io");
 			LOAD_SETTING_EX("log", bool, log_asset_opens, "asset_io");
 			LOAD_SETTING_EX("log", bool, log_asset_ids, "id");
+			LOAD_SETTING_EX("log", bool, log_hook_state, "pointers");
 
 			settings.fingerprint = toml::find_or<std::string>(tbl, "__GAME_ID__", settings.fingerprint);
 			if (tbl.contains(addr_cache_group)) {
@@ -140,6 +141,7 @@ namespace rivet_hook {
 		SAVE_SETTING_EX("log", log_loose_io, "loose_io", "logs loose io; disable by default because log noise");
 		SAVE_SETTING_EX("log", log_asset_opens, "asset_io", "logs asset paths as they are assets; disable by default because log noise");
 		SAVE_SETTING_EX("log", log_asset_ids, "id", "logs asset ids as they are hashed; disable by default because log noise");
+		SAVE_SETTING_EX("log", log_hook_state, "pointers", "logs pointer information; disable by default because log noise");
 
 		tbl["__GAME_ID__"] = fingerprint;
 		for (auto &[original_key, values] : addresses) {

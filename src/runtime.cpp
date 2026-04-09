@@ -43,7 +43,9 @@ namespace rivet_hook {
 	find_addresses(const std::string &name, const HMODULE game, const hex_signature &signature) -> std::vector<intptr_t> {
 		std::vector<intptr_t> pointers;
 		if (!g_settings.addresses.contains(name)) {
-			g_output << "[rivet] searching for " << name << " pointers" << std::endl;
+			if (g_settings.log_hook_state) {
+				g_output << "[rivet] searching for " << name << " pointers\n";
+			}
 			pointers = scan(game, signature);
 			g_settings.addresses.emplace(name, pointers);
 		} else {
@@ -51,11 +53,13 @@ namespace rivet_hook {
 		}
 
 		if (pointers.empty()) {
-			g_output << "[rivet] could not find " << name << " pointer, aborting" << std::endl;
+			g_output << "[rivet] could not find " << name << " pointer, aborting\n";
 			return {};
 		}
 
-		g_output << "[rivet] found " << pointers.size() << " " << name << " pointers" << std::dec << std::endl;
+		if (g_settings.log_hook_state) {
+			g_output << "[rivet] found " << pointers.size() << " " << name << " pointers" << std::dec << "\n";
+		}
 
 		return pointers;
 	}
@@ -69,13 +73,15 @@ namespace rivet_hook {
 		}
 
 		if (pointers.size() > limit) {
-			g_output << "[rivet] found " << pointers.size() << " " << name << " pointers, too many. aborting" << std::endl;
+			g_output << "[rivet] found " << pointers.size() << " " << name << " pointers, too many. aborting\n";
 			return 0;
 		}
 
 		const auto pointer = pointers[select];
 
-		g_output << "[rivet] found " << name << " pointer at " << std::hex << pointer << std::dec << std::endl;
+		if (g_settings.log_hook_state) {
+			g_output << "[rivet] found " << name << " pointer at " << std::hex << pointer << std::dec << "\n";
+		}
 
 		return pointer;
 	}
@@ -95,23 +101,25 @@ namespace rivet_hook {
 	create_hook(const std::string &name, LPVOID pointer, LPVOID detour, LPVOID *original) -> void {
 		if (!g_minhook_initialized) {
 			if (MH_Initialize() != MH_OK) {
-				g_output << "[rivet] failed to initialize minhook" << std::endl;
+				g_output << "[rivet] failed to initialize minhook\n";
 				return;
 			}
 			g_minhook_initialized = true;
 		}
 
 		if (MH_CreateHook(pointer, detour, original) != MH_OK) {
-			g_output << "[rivet] failed to create " << name << " hook" << std::endl;
+			g_output << "[rivet] failed to create " << name << " hook\n";
 			return;
 		}
 
 		if (MH_EnableHook(pointer) != MH_OK) {
-			g_output << "[rivet] failed to enable " << name << " hook" << std::endl;
+			g_output << "[rivet] failed to enable " << name << " hook\n";
 			return;
 		}
 
-		g_output << "[rivet] created " << name << " hook" << std::endl;
+		if (g_settings.log_hook_state) {
+			g_output << "[rivet] created " << name << " hook\n";
+		}
 	}
 
 	auto
@@ -147,7 +155,7 @@ namespace rivet_hook {
 			if (const auto current_message = std::string(message); current_context != last_context || current_message != last_message) {
 				last_context = current_context;
 				last_message = current_message;
-				g_output << "[ctx] [" << (context == nullptr ? "?" : context) << "] " << (message == nullptr ? "" : message) << std::endl;
+				g_output << "[ctx] [" << (context == nullptr ? "?" : context) << "] " << (message == nullptr ? "" : message) << "\n";
 			}
 		}
 		return result;
@@ -165,7 +173,7 @@ namespace rivet_hook {
 			const std::string buffer_str(buffer.get());
 			g_output << "[log] " << buffer_str;
 			if (buffer_str.back() != '\n') {
-				g_output << std::endl;
+				g_output << "\n";
 			} else {
 			}
 		}
@@ -181,10 +189,11 @@ namespace rivet_hook {
 			// this runs on the main thread
 
 			g_output.open("./rivet.log");
-			g_output << "[rivet] init" << std::endl;
+			g_output << "[rivet] init\n";
+			g_output << "[rivet] version " << RIVET_VERSION << "\n";
 
 			if (!GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_PIN, nullptr, &g_game_module)) {
-				g_output << "[rivet] unable to get the executable handle." << std::endl;
+				g_output << "[rivet] unable to get the executable handle.\n";
 				return;
 			}
 
@@ -201,19 +210,19 @@ namespace rivet_hook {
 			AssetLoader::init();
 
 			if (g_settings.load_renderdoc) {
-				g_output << "[rivet] loading renderdoc" << std::endl;
+				g_output << "[rivet] loading renderdoc\n";
 				if (std::filesystem::exists("renderdoc.dll")) {
-					g_output << "[rivet] loaded local renderdoc" << std::endl;
+					g_output << "[rivet] loaded local renderdoc\n";
 					g_renderdoc = LoadLibraryA("renderdoc.dll");
 				} else {
 					if (const auto renderdoc_path = std::filesystem::path(g_settings.renderdoc_path.data()); renderdoc_path.empty()) {
-						g_output << "[rivet] renderdoc.dll not found" << std::endl;
+						g_output << "[rivet] renderdoc.dll not found\n";
 					} else {
 						if (std::filesystem::exists(renderdoc_path)) {
-							g_output << "[rivet] loaded " << renderdoc_path << std::endl;
+							g_output << "[rivet] loaded " << renderdoc_path << "\n";
 							g_renderdoc = LoadLibraryA(g_settings.renderdoc_path.data());
 						} else {
-							g_output << "[rivet] renderdoc.dll not found" << std::endl;
+							g_output << "[rivet] renderdoc.dll not found\n";
 						}
 					}
 				}
@@ -223,7 +232,7 @@ namespace rivet_hook {
 				if (g_settings.debug_ddl) {
 					std::filesystem::create_directory("./ddl");
 				}
-				g_output << "[rivet] starting ddl dump thread" << std::endl;
+				g_output << "[rivet] starting ddl dump thread\n";
 				g_ddl_dump_thread = std::thread(ddl::dump_ddl);
 			}
 
@@ -236,20 +245,20 @@ namespace rivet_hook {
 			}
 
 			if (g_settings.list_versions) {
-				g_output << "[rivet] dumping versions" << std::endl;
+				g_output << "[rivet] dumping versions\n";
 				ddl::list_versions();
 			}
 
-			g_output << "[rivet] init complete" << std::endl;
+			g_output << "[rivet] init complete\n";
 			g_output.flush();
 		}
 
 		auto
 		fini() -> void {
-			g_output << "[rivet] fini" << std::endl;
+			g_output << "[rivet] fini\n";
 
 			if (g_renderdoc != nullptr) {
-				g_output << "[rivet] unloading renderdoc" << std::endl;
+				g_output << "[rivet] unloading renderdoc\n";
 				FreeLibrary(g_renderdoc);
 			}
 
@@ -261,7 +270,7 @@ namespace rivet_hook {
 
 			g_settings.save();
 
-			g_output << "[rivet] fini complete" << std::endl;
+			g_output << "[rivet] fini complete\n";
 			g_output.flush();
 			g_output.close();
 		}

@@ -28,7 +28,7 @@ namespace rivet_hook {
 		explicit MemoryFile(const std::filesystem::path &path): original_path(path) {
 			file = CreateFileW(path.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
 			if (file == INVALID_HANDLE_VALUE) {
-				g_output << "[io] cannot open " << path.string() << " got " << GetLastError() << std::endl;
+				g_output << "[io] cannot open " << path.string() << " got " << GetLastError() << "\n";
 				return;
 			}
 
@@ -36,13 +36,13 @@ namespace rivet_hook {
 
 			map = CreateFileMapping(file, nullptr, PAGE_READONLY, 0, 0, nullptr);
 			if (map == INVALID_HANDLE_VALUE) {
-				g_output << "[io] cannot map " << path.string() << " got " << GetLastError() << std::endl;
+				g_output << "[io] cannot map " << path.string() << " got " << GetLastError() << "\n";
 				return;
 			}
 
 			buffer = static_cast<const uint8_t *>(MapViewOfFile(map, FILE_MAP_READ, 0, 0, 0));
 			if (buffer == nullptr) {
-				g_output << "[io] cannot pin " << path.string() << " got " << GetLastError() << std::endl;
+				g_output << "[io] cannot pin " << path.string() << " got " << GetLastError() << "\n";
 				return;
 			}
 		}
@@ -139,7 +139,7 @@ namespace rivet_hook {
 		const auto result = game_create_asset_id(asset_id, asset_name);
 
 		if (asset_name && *asset_name && asset_id) {
-			g_output << "[asset id] " << std::hex << *asset_id << " " << asset_name << std::endl;
+			g_output << "[asset id] " << std::hex << *asset_id << " " << asset_name << "\n";
 		}
 
 		return result;
@@ -148,7 +148,7 @@ namespace rivet_hook {
 	auto
 	decode_url(const char *url, const unsigned int urlLen, char *decoded, unsigned int *decodedSize) -> void {
 		if (url != nullptr) {
-			g_output << "[cohtml] " << url << std::endl;
+			g_output << "[cohtml] " << url << "\n";
 		}
 
 		game_decode_url(url, urlLen, decoded, decodedSize);
@@ -175,7 +175,7 @@ namespace rivet_hook {
 			g_output << "(nowhere)";
 		}
 
-		g_output << std::endl;
+		g_output << "\n";
 
 		return game_mgr_load_asset(self, asset_id, parent_asset_id, asset_name, referencing_asset, unknown6, unknown7);
 	}
@@ -184,13 +184,13 @@ namespace rivet_hook {
 	hook_cohtml() -> void {
 		const HMODULE mod = GetModuleHandleA("cohtml.WindowsDesktop.dll");
 		if (!mod) {
-			g_output << "cannot hook cohtml, not loaded yet." << std::endl;
+			g_output << "cannot hook cohtml, not loaded yet.\n";
 			return;
 		}
 
 		const auto proc = reinterpret_cast<LPVOID>(GetProcAddress(mod, decode_url_string_name));
 		if (!proc) {
-			g_output << "cannot hook cohtml, export not found." << std::endl;
+			g_output << "cannot hook cohtml, export not found.\n";
 			return;
 		}
 
@@ -263,12 +263,12 @@ namespace rivet_hook {
 	auto
 	populate_mod_asset(const std::filesystem::path &path, const std::string &game_path, AssetId asset_id, AssetType type, AssetLanguage lang) -> void {
 		g_output << std::hex << "[loader] " << path.string() << " resolved to " << game_path << " with asset id " << asset_id << ", type " << static_cast<int32_t>(type) << ", language "
-				 << static_cast<int32_t>(lang) << std::endl;
+				 << static_cast<int32_t>(lang) << "\n";
 
 		auto &mod_list = mod_files_combined[static_cast<int32_t>(lang)][static_cast<int32_t>(type)];
 
 		if (const auto &mod_index = mod_list.find(asset_id); mod_index != mod_list.end()) {
-			g_output << "[loader] " << path << " has a collision with " << mod_index->second.original_path << "; unloading old..." << std::endl;
+			g_output << "[loader] " << path << " has a collision with " << mod_index->second.original_path << "; unloading old...\n";
 
 			mod_index->second.close();
 			mod_list.erase(asset_id);
@@ -276,7 +276,7 @@ namespace rivet_hook {
 
 		auto [it, inserted] = mod_list.emplace(asset_id, path);
 		if (!inserted) {
-			g_output << "[loader] " << path << " did not insert?? " << std::endl;
+			g_output << "[loader] " << path << " did not insert?? \n";
 			return;
 		}
 
@@ -284,7 +284,7 @@ namespace rivet_hook {
 		created.language = lang;
 
 		if (!created.valid()) {
-			g_output << "[loader] " << path << " failed to init" << std::endl;
+			g_output << "[loader] " << path << " failed to init\n";
 			created.close();
 			mod_list.erase(asset_id);
 		}
@@ -332,7 +332,7 @@ namespace rivet_hook {
 				try {
 					asset_id = 0xE0000000'00000000 | std::stoul(relative_path.stem().string());
 				} catch (const std::exception &e) {
-					g_output << "could not parse asset id for path " << relative_path << ": " << e.what() << std::endl;
+					g_output << "could not parse asset id for path " << relative_path << ": " << e.what() << "\n";
 					continue;
 				}
 			} else {
@@ -340,7 +340,7 @@ namespace rivet_hook {
 					try {
 						asset_id = std::stoull(relative_path.stem().string(), nullptr, 16);
 					} catch (const std::exception &e) {
-						g_output << "could not parse asset id for path " << relative_path << ": " << e.what() << std::endl;
+						g_output << "could not parse asset id for path " << relative_path << ": " << e.what() << "\n";
 						continue;
 					}
 				} else {
@@ -373,12 +373,12 @@ namespace rivet_hook {
 			try {
 				directory_id = std::stoul(entry_path.filename().string());
 			} catch (const std::exception &e) {
-				g_output << "could not parse group id for path " << entry_path << ": " << e.what() << std::endl;
+				g_output << "could not parse group id for path " << entry_path << ": " << e.what() << "\n";
 				continue;
 			}
 
 			if (directory_id > 0xff) {
-				g_output << "group id for " << entry_path << " is malformed. skipping" << std::endl;
+				g_output << "group id for " << entry_path << " is malformed. skipping\n";
 				continue;
 			}
 
@@ -398,7 +398,7 @@ namespace rivet_hook {
 					try {
 						asset_id = std::stoull(relative_path.filename().string(), nullptr, 16);
 					} catch (const std::exception &e) {
-						g_output << "could not parse asset id for path " << relative_path << ": " << e.what() << std::endl;
+						g_output << "could not parse asset id for path " << relative_path << ": " << e.what() << "\n";
 						continue;
 					}
 				} else {
@@ -422,15 +422,15 @@ namespace rivet_hook {
 			}
 
 			if (!std::filesystem::is_directory(path)) {
-				g_output << "[loader] mod path " << entry << " does not exist! skipping." << std::endl;
+				g_output << "[loader] mod path " << entry << " does not exist! skipping.\n";
 				continue;
 			}
 
 			if (std::filesystem::exists(path / "info.json")) {
-				g_output << "[loader] mod path " << entry << " is overstrike format." << std::endl;
+				g_output << "[loader] mod path " << entry << " is overstrike format.\n";
 				load_mod_assets_overstrike(path);
 			} else {
-				g_output << "[loader] mod path " << entry << " is rivet format." << std::endl;
+				g_output << "[loader] mod path " << entry << " is rivet format.\n";
 				load_mod_assets_rivet(path);
 			}
 		}
@@ -452,13 +452,13 @@ namespace rivet_hook {
 	open_file(const intptr_t self, AssetFile *file, const AssetId asset_id, AssetType type, const int32_t platform, const uint8_t manager_id) -> void {
 		if (g_settings.log_loose_io) {
 			g_output << "[loose][open ] " << std::hex << asset_id << " type: " << static_cast<int32_t>(type) << " manager: " << static_cast<uint32_t>(manager_id) << " status: " << file->status
-					 << " padding: " << file->padding << " data: " << file->data << " asset_id: " << file->asset_id << std::endl;
+					 << " padding: " << file->padding << " data: " << file->data << " asset_id: " << file->asset_id << "\n";
 		}
 
 		if (type < AssetType::Count) {
 			if (has_mod_asset(asset_id, type)) {
 				if (g_settings.log_mod_access) {
-					g_output << "[loose][open ] " << std::hex << asset_id << " is modded" << std::endl;
+					g_output << "[loose][open ] " << std::hex << asset_id << " is modded\n";
 					g_output.flush();
 				}
 
@@ -478,7 +478,7 @@ namespace rivet_hook {
 	read_file(const intptr_t self, AssetFile *file, char *buffer, const size_t offset, const size_t size, const int32_t priority, const int32_t unknown2) -> bool {
 		if (g_settings.log_loose_io) {
 			g_output << "[loose][read ] offset: " << std::hex << offset << " size: " << size << " status: " << file->status << " padding: " << file->padding << " data: " << file->data
-					 << " asset_id: " << file->asset_id << std::endl;
+					 << " asset_id: " << file->asset_id << "\n";
 			g_output.flush();
 		}
 
@@ -505,7 +505,7 @@ namespace rivet_hook {
 	auto
 	close_file(const intptr_t self, AssetFile *file) -> void {
 		if (g_settings.log_loose_io) {
-			g_output << "[loose][close] status: " << file->status << " padding: " << file->padding << " data: " << file->data << " asset_id: " << file->asset_id << std::endl;
+			g_output << "[loose][close] status: " << file->status << " padding: " << file->padding << " data: " << file->data << " asset_id: " << file->asset_id << "\n";
 			g_output.flush();
 		}
 
@@ -528,7 +528,7 @@ namespace rivet_hook {
 			uint64_t assetId = assetIds[i];
 
 			if (g_settings.log_asset_opens) {
-				g_output << "[built] " << std::hex << assetId << " type: " << static_cast<uint32_t>(meta.type) << std::endl;
+				g_output << "[built] " << std::hex << assetId << " type: " << static_cast<uint32_t>(meta.type) << "\n";
 			}
 
 			const MemoryFile *mod_file = nullptr;
@@ -542,32 +542,32 @@ namespace rivet_hook {
 
 			if (mod_file != nullptr && mod_file->valid()) {
 				if (g_settings.log_mod_access) {
-					g_output << "[built] " << std::hex << assetId << " is modded" << std::endl;
+					g_output << "[built] " << std::hex << assetId << " is modded\n";
 				}
 
 				if (g_settings.log_mod_access && g_settings.log_mod_state) {
-					g_output << "[built] " << std::hex << assetId << " create header" << std::endl;
+					g_output << "[built] " << std::hex << assetId << " create header\n";
 				}
 
 				AssetHeader *header = game_alloc_asset(0, 1, assetId, &meta, static_cast<uint8_t>(mod_file->language));
 
 				if (g_settings.log_mod_access && g_settings.log_mod_state) {
-					g_output << "[built] " << std::hex << assetId << " header created" << std::endl;
+					g_output << "[built] " << std::hex << assetId << " header created\n";
 				}
 
 				if (header) {
 					if (g_settings.log_mod_access && g_settings.log_mod_state) {
-						g_output << "[built] " << std::hex << assetId << " check valid, ptr " << reinterpret_cast<intptr_t>(mod_file->buffer) << std::endl;
+						g_output << "[built] " << std::hex << assetId << " check valid, ptr " << reinterpret_cast<intptr_t>(mod_file->buffer) << "\n";
 					}
 
 					const auto magic = *reinterpret_cast<const uint32_t *>(mod_file->buffer);
 					if (g_settings.log_mod_access && g_settings.log_mod_state) {
-						g_output << "[built] " << std::hex << assetId << " magic " << magic << std::endl;
+						g_output << "[built] " << std::hex << assetId << " magic " << magic << "\n";
 					}
 
 					if (mod_file->size <= 0x24 || !game_is_asset_valid(magic, meta.type, assetId)) {
 						if (g_settings.log_mod_access && g_settings.log_mod_state) {
-							g_output << "[built] " << std::hex << assetId << " not valid" << std::endl;
+							g_output << "[built] " << std::hex << assetId << " not valid\n";
 						}
 
 						header->status = 7;
@@ -575,19 +575,19 @@ namespace rivet_hook {
 					}
 
 					if (g_settings.log_mod_access && g_settings.log_mod_state) {
-						g_output << "[built] " << std::hex << assetId << " valid, create" << std::endl;
+						g_output << "[built] " << std::hex << assetId << " valid, create\n";
 					}
 
 					if ((*game_create_asset)(header, mod_file->buffer, game_create_asset_data)) {
 						if (g_settings.log_mod_access && g_settings.log_mod_state) {
-							g_output << "[built] " << std::hex << assetId << " created" << std::endl;
+							g_output << "[built] " << std::hex << assetId << " created\n";
 						}
 
 						intptr_t offset = 0x24;
 						for (int32_t j = 0; j < header->dataRangeCount; ++j) {
 							if (static_cast<size_t>(offset + header->dataRanges[j].size) > mod_file->size) {
 								if (g_settings.log_mod_access && g_settings.log_mod_state) {
-									g_output << "[built] " << std::hex << assetId << " out of bounds" << std::endl;
+									g_output << "[built] " << std::hex << assetId << " out of bounds\n";
 								}
 
 								header->status = 6;
@@ -595,7 +595,7 @@ namespace rivet_hook {
 							}
 
 							if (g_settings.log_mod_access && g_settings.log_mod_state) {
-								g_output << "[built] " << std::hex << assetId << " copy" << std::endl;
+								g_output << "[built] " << std::hex << assetId << " copy\n";
 							}
 
 							std::copy_n(mod_file->buffer + offset, header->dataRanges[j].size, header->dataRanges[j].buffer);
@@ -603,7 +603,7 @@ namespace rivet_hook {
 						}
 
 						if (g_settings.log_mod_access && g_settings.log_mod_state) {
-							g_output << "[built] " << std::hex << assetId << " done" << std::endl;
+							g_output << "[built] " << std::hex << assetId << " done\n";
 						}
 
 						header->status = 0;
@@ -611,13 +611,13 @@ namespace rivet_hook {
 					}
 
 					if (g_settings.log_mod_access && g_settings.log_mod_state) {
-						g_output << "[built] " << std::hex << assetId << " cant create" << std::endl;
+						g_output << "[built] " << std::hex << assetId << " cant create\n";
 					}
 					header->status = 4;
 
 				commit:
 					if (g_settings.log_mod_access && g_settings.log_mod_state) {
-						g_output << "[built] " << std::hex << assetId << " commit header" << std::endl;
+						g_output << "[built] " << std::hex << assetId << " commit header\n";
 					}
 
 					game_commit_assets(1);
@@ -651,13 +651,13 @@ namespace rivet_hook {
 				// here in case of crash becasue i haven't seen this yet
 				// there's 3 different ways it fails early prior to this so if it happens here something really bad happened
 
-				g_output << "[built] invalid path " << std::hex << assetId << std::endl;
+				g_output << "[built] invalid path " << std::hex << assetId << "\n";
 
 				if (game_alloc_asset(0, 1, assetId, &meta, meta.language)) {
 					game_commit_assets(1);
 				}
 
-				g_output << "[built] skipped " << std::hex << assetId << std::endl;
+				g_output << "[built] skipped " << std::hex << assetId << "\n";
 
 				continue;
 			}
@@ -752,25 +752,25 @@ namespace rivet_hook {
 
 		#define LOAD_FUNC_ADDRESS_RAW(var, name, ptr) \
 		if (var = find_address(name, g_game_module, ptr); !var) { \
-		g_output << "[loader] cannot initialize, " name " address is not found" << std::endl; \
+		g_output << "[loader] cannot initialize, " name " address is not found\n"; \
 		return; \
 		}
 
 		#define LOAD_FUNC_ADDRESS(var, name, type, ptr) \
 		if (var = reinterpret_cast<type>(find_address(name, g_game_module, ptr)); !var) { \
-		g_output << "[loader] cannot initialize, " name " address is not found" << std::endl; \
+		g_output << "[loader] cannot initialize, " name " address is not found\n"; \
 		return; \
 		}
 
 		#define LOAD_VAR_ADDRESS(var, name, type, ptr, addr) \
 			if (var = reinterpret_cast<type>(load_rel_var(find_address(name, g_game_module, ptr), addr)); !var) { \
-				g_output << "[loader] cannot initialize, " name " address is not found" << std::endl; \
+				g_output << "[loader] cannot initialize, " name " address is not found\n"; \
 				return; \
 			}
 
 		const auto * archivefs_vtable = static_cast<intptr_t*>(load_rel_var(find_address("archivefs", g_game_module, ARCHIVEFS_VTABLE_SIGNATURE), ARCHIVEFS_VTABLE_ADDRESS));
 		if (!archivefs_vtable) {
-			g_output << "[loader] cannot initialize, archivefs address is not found" << std::endl;
+			g_output << "[loader] cannot initialize, archivefs address is not found\n";
 			return;
 		}
 
@@ -786,7 +786,7 @@ namespace rivet_hook {
 
 		game_mount_archive = reinterpret_cast<mount_archive_t>(archivefs_vtable[ARCHIVEFS_VTABLE_MOUNT]);
 		if (!game_mount_archive) {
-			g_output << "[loader] cannot initialize, mount archive address is not found" << std::endl;
+			g_output << "[loader] cannot initialize, mount archive address is not found\n";
 		}
 
 		// vars we need to read/write to for reimpl_load_ops
@@ -838,7 +838,7 @@ namespace rivet_hook {
 		for (auto &type_mod_list : mod_files_combined) {
 			for (auto &mod_list : type_mod_list) {
 				for (auto &value : mod_list | std::views::values) {
-					g_output << "[loader] closing " << value.original_path.string() << std::endl;
+					g_output << "[loader] closing " << value.original_path.string() << "\n";
 					value.close();
 				}
 

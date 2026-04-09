@@ -64,7 +64,7 @@ namespace rivet_hook::ddl {
 					{
 						if (g_settings.debug_ddl && (object + offset)[index] != 0 && type_ptr != nullptr) {
 							g_output << "[DDL] " << type_ptr->name << " field " << type_ptr->field_names[type_index] << " (index " << index << ", type " << static_cast<int>(field_type)
-									 << ") has non-zero value that is not handled" << std::endl;
+									 << ") has non-zero value that is not handled\n";
 						}
 
 						field["default"] = nullptr;
@@ -108,7 +108,7 @@ namespace rivet_hook::ddl {
 			}
 
 			g_output << "[DDL] " << type_ptr->name << " field " << type_ptr->field_names[type_index] << " (type " << static_cast<int>(field_type) << ", array type " << static_cast<int>(array_type)
-					 << ") has non-zero dynamic array that is not handled" << std::endl;
+					 << ") has non-zero dynamic array that is not handled\n";
 
 			// this is more complex, this will likely crash
 			/*
@@ -161,13 +161,13 @@ namespace rivet_hook::ddl {
 
 		if (g_settings.debug_ddl && reinterpret_cast<const uint64_t *>(object + offset)[0] != 0) {
 			g_output << "[DDL] " << type_ptr->name << " field " << type_ptr->field_names[type_index] << " (type " << static_cast<int>(field_type) << ", array type " << static_cast<int>(array_type)
-					 << ") has non-zero value that is not handled" << std::endl;
+					 << ") has non-zero value that is not handled\n";
 		}
 	}
 
 	auto
 	dump_ddl() -> void {
-		g_output << "[rivet] dumping DDL structures" << std::endl;
+		g_output << "[rivet] dumping DDL structures\n";
 		using namespace std::chrono_literals;
 
 		const auto hm_pointer = find_address("ddl hash map", g_game_module, DDL_HASH_MAP_SIGNATURE);
@@ -178,11 +178,11 @@ namespace rivet_hook::ddl {
 			return;
 		}
 
-		g_output << "[DDL] sleeping by 5 seconds to give the game a chance to set up..." << std::endl;
+		g_output << "[DDL] sleeping by 5 seconds to give the game a chance to set up...\n";
 
 		std::this_thread::sleep_for(5000ms);
 
-		g_output << "[DDL] dumping..." << std::endl;
+		g_output << "[DDL] dumping...\n";
 
 		const auto *type_hash_map = static_cast<const ddl_hash_map *>(load_rel_var(hm_pointer, DDL_HASH_MAP_ADDRESS));
 		const auto **type_list = static_cast<const ddl_type_descriptor **>(load_rel_var(tl_pointer, DDL_TYPE_LIST_ADDRESS));
@@ -358,17 +358,17 @@ namespace rivet_hook::ddl {
 		json_data.flush();
 		json_data.close();
 
-		g_output << "[DDL] done" << std::endl;
-		g_output << "[DDL] found " << enums.size() << " enums" << std::endl;
-		g_output << "[DDL] found " << bitsets.size() << " bitsets" << std::endl;
-		g_output << "[DDL] found " << roots.size() << " roots" << std::endl;
-		g_output << "[DDL] found " << types.size() << " types" << std::endl;
+		g_output << "[DDL] done\n";
+		g_output << "[DDL] found " << enums.size() << " enums\n";
+		g_output << "[DDL] found " << bitsets.size() << " bitsets\n";
+		g_output << "[DDL] found " << roots.size() << " roots\n";
+		g_output << "[DDL] found " << types.size() << " types\n";
 		g_output.flush();
 	}
 
 	auto
 	list_versions() -> void {
-		g_output << "[rivet] dumping versions" << std::endl;
+		g_output << "[rivet] dumping versions\n";
 		using namespace std::chrono_literals;
 		using version_str_t = const char *(*) (uint32_t index);
 		using version_hash_t = uint32_t (*)(uint32_t index);
@@ -399,7 +399,7 @@ namespace rivet_hook::ddl {
 			version["id"] = hash;
 			version["version"] = version_str;
 			versions.emplace_back(version);
-			g_output << "[ver] " << version << " = " << str_stream.str() << std::endl;
+			g_output << "[ver] " << version << " = " << str_stream.str() << "\n";
 		}
 
 		std::ofstream json_data;

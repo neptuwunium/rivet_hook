@@ -19,6 +19,8 @@ namespace rivet_hook {
 	extern Settings g_settings;
 	extern HMODULE g_game_module;
 
+	constexpr std::string_view RIVET_VERSION = "1.0.0";
+
 	auto
 	load_rel_var(intptr_t ptr, int rel_address) -> void *;
 
