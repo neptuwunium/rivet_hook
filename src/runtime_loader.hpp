@@ -174,8 +174,8 @@ namespace rivet_hook {
 	using window_init_t = bool (*)(intptr_t self);
 	using is_asset_valid_t = bool (*)(uint32_t magic, uint8_t manager_id, AssetId asset_id);
 	using nextgen_load_data_t = bool (*)(void* asset, int32_t minLod);
-	using dstorage_get_factory_t = HRESULT STDMETHODCALLTYPE (*)(REFIID riid, _COM_Outptr_ void** ppv);
-	using dstorage_enqueue_request_t = void STDMETHODCALLTYPE (*)(IDStorageQueue* self, const DSTORAGE_REQUEST* request);
+	using dstorage_get_factory_t = HRESULT (STDMETHODCALLTYPE *)(REFIID riid, _COM_Outptr_ void** ppv);
+	using dstorage_enqueue_request_t = void (STDMETHODCALLTYPE *)(IDStorageQueue* self, const DSTORAGE_REQUEST* request);
 
 	struct AssetLoader {
 		static auto
