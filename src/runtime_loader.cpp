@@ -783,13 +783,72 @@ namespace rivet_hook {
 	auto
 	nextgen_load_data(void* asset, const int32_t lods) -> bool {
 		/*
+		struct DataRange {
+			uint64_t start;
+			uint64_t size;
+		};
+
+		struct TextureAsset {
+			void** vtable;
+			uint64_t asset_id;
+			const char* name;
+			uint16_t nameOffset;
+			uint8_t unknown1[0x22];
+			uint32_t max_lod;
+			void* resource;
+			uint8_t unknown2[0x7d];
+			uint8_t loaded_lods;
+		};
+
+		struct GPUDesc12 {
+			ID3D12Resource* desc;
+			u32 dxgi_format;
+			u32 alignment;
+			u32 width;
+			u32 height;
+			u32 arraySize;
+			u32 mipLevels;
+		};
+
+		struct GPUDesc11 {
+			ID3D11Texture* desc;
+			uint8_t unknown[0x30];
+			GPUDesc12* d3d12;
+		};
+
+		struct Chunk {
+			GPUDesc11* desc; // - 0x30
+			uint64_t mipId; // - 0x28
+			uint64_t unk2; // - 0x20
+			u32 width; // - 0x18
+			u32 height; // - 0x14
+			uint64_t isCompressed; // - 0x10
+			uint64_t handle; // - 8
+			uint64_t offset; // + 0
+			uint64_t size; // + 8
+			uint64_t compressionType; // + 0x10
+		};
+
+		struct HighMipData {
+			uint64_t destPtr;
+			uint64_t queue;
+			u32 oldMinLod;
+			u32 newMinLod;
+			u32 fileSize;
+			u32 numRanges;
+			DataRange memRanges[0x100];
+			DataRange fileRanges[0x100];
+			GpuDesc desc;
+			Chunk chunk[64];
+		};
+
 		auto mod_file = find_mod_asset(asset->asset_id, AssetType::Texture);
 		if (!mod_file) {
 			return game_NextGen_LoadData(asset, lods);
 		}
 
 		if (g_settings.log_mod_access) {
-			g_output << "[loose][open ] " << std::hex << asset_id << " is modded\n";
+			g_output << "[tex_nextgen] " << std::hex << asset_id << " is modded\n";
 			g_output.flush();
 		}
 
@@ -805,11 +864,23 @@ namespace rivet_hook {
 
 		game_CreateTextureResource(asset, &data);
 
-		for (uint32_t rangeIndex = 0; rangeIndex < numRanges; ++rangeIndex) {
-			std::copy_n(...);
-		}
+		asset->lods &= 0xf0;
+		asset->lods |= lods & 0xf;
 
-		is data copied anywhere??
+		auto mipLevels = data->desc->d3d12->mipLevels;
+		auto width = data>desc->d3d12->width;
+		auto height = data->desc->d3d12->height;
+
+		for (uint32_t rangeIndex = 0; rangeIndex < numRanges; ++rangeIndex) {
+			auto mip = rangeIndex % mipLevels;
+			auto slice = rangeIndex / mipLevels;
+			auto offset = data.buffer + ranges[rangeIndex].start;
+			auto size = ranges[rangeIndex].size;
+			dstorage_queue->EnqueueRequest(data->desc->d3d12->desc, ... DSTORAGE_SOURCE_MEMORY ... SubResourceIndex = slice, DSTORAGE_REQUEST_DESTINATION_TEXTURE_REGION { 0, 0, 0, width >> mip, height >> mip, 1, });
+		}
+		dstorage_queue->Submit();
+
+		return true;
 		*/
 		return game_nextgen_load_data(asset, lods);
 	}
