@@ -14,6 +14,7 @@
 
 #include "runtime.hpp"
 #include "runtime_loader.hpp"
+#include "asset_pipeline.hpp"
 #include "settings.hpp"
 #include "signature.hpp"
 
@@ -83,6 +84,26 @@ namespace rivet_hook {
 		}
 	};
 
+	struct CriticalSectionGuard {
+		LPCRITICAL_SECTION section;
+		bool success;
+
+		explicit CriticalSectionGuard(const LPCRITICAL_SECTION section) : section(section) {
+			success = TryEnterCriticalSection(section) != 0;
+		}
+
+		~CriticalSectionGuard() {
+			if (!success) {
+				return;
+			}
+
+			LeaveCriticalSection(section);
+		}
+
+		CriticalSectionGuard(const CriticalSectionGuard&) = delete;
+		CriticalSectionGuard& operator=(const CriticalSectionGuard&) = delete;
+	};
+
 	bool runtime_loader_ready = false;
 	using mod_file_list_t = std::unordered_map<AssetId, MemoryFile>;
 	using mod_list_t = std::array<mod_file_list_t, static_cast<int32_t>(AssetType::Count)>;
@@ -145,8 +166,9 @@ namespace rivet_hook {
 	SortFunc game_sort_op = {};
 	bool *legacy_texture_loading = nullptr;
 	bool *disable_directstorage = nullptr;
-
-	Microsoft::WRL::ComPtr<IDStorageQueue1> dstorage_queue = nullptr;
+	IDStorageFactory* dstorage_factory = nullptr;
+	NxDStorageWorkerContext* dstorage_context = nullptr;
+	LPCRITICAL_SECTION texture_lock = nullptr;
 
 	auto
 	create_asset_id(AssetId *asset_id, const char *asset_name) -> AssetId * {
@@ -741,20 +763,7 @@ namespace rivet_hook {
 
 		if (memcmp(&riid, &IID_IDStorageFactory, sizeof(IID_IDStorageFactory)) == 0) {
 			MH_DisableHook(dll_dstorage_get_factory);
-
-			auto *factory = *reinterpret_cast<IDStorageFactory **>(ppv);
-			using Microsoft::WRL::ComPtr;
-
-			DSTORAGE_QUEUE_DESC queueSetup = {};
-			queueSetup.Capacity = DSTORAGE_MAX_QUEUE_CAPACITY;
-			queueSetup.Priority = DSTORAGE_PRIORITY_NORMAL;
-			queueSetup.SourceType = DSTORAGE_REQUEST_SOURCE_MEMORY;
-			queueSetup.Device = nullptr;
-
-			if (FAILED(factory->CreateQueue(&queueSetup, IID_IDStorageQueue1, reinterpret_cast<void **>(dstorage_queue.GetAddressOf())))) {
-				g_output << "[dstorage] could not create dstorage queue\n";
-				g_output.flush();
-			}
+			dstorage_factory = *reinterpret_cast<IDStorageFactory **>(ppv);
 		}
 
 		return result;
@@ -781,108 +790,109 @@ namespace rivet_hook {
 	}
 
 	auto
-	nextgen_load_data(void* asset, const int32_t lods) -> bool {
-		/*
-		struct DataRange {
-			uint64_t start;
-			uint64_t size;
-		};
-
-		struct TextureAsset {
-			void** vtable;
-			uint64_t asset_id;
-			const char* name;
-			uint16_t nameOffset;
-			uint8_t unknown1[0x22];
-			uint32_t max_lod;
-			void* resource;
-			uint8_t unknown2[0x7d];
-			uint8_t loaded_lods;
-		};
-
-		struct GPUDesc12 {
-			ID3D12Resource* desc;
-			u32 dxgi_format;
-			u32 alignment;
-			u32 width;
-			u32 height;
-			u32 arraySize;
-			u32 mipLevels;
-		};
-
-		struct GPUDesc11 {
-			ID3D11Texture* desc;
-			uint8_t unknown[0x30];
-			GPUDesc12* d3d12;
-		};
-
-		struct Chunk {
-			GPUDesc11* desc; // - 0x30
-			uint64_t mipId; // - 0x28
-			uint64_t unk2; // - 0x20
-			u32 width; // - 0x18
-			u32 height; // - 0x14
-			uint64_t isCompressed; // - 0x10
-			uint64_t handle; // - 8
-			uint64_t offset; // + 0
-			uint64_t size; // + 8
-			uint64_t compressionType; // + 0x10
-		};
-
-		struct HighMipData {
-			uint64_t destPtr;
-			uint64_t queue;
-			u32 oldMinLod;
-			u32 newMinLod;
-			u32 fileSize;
-			u32 numRanges;
-			DataRange memRanges[0x100];
-			DataRange fileRanges[0x100];
-			GpuDesc desc;
-			Chunk chunk[64];
-		};
-
-		auto mod_file = find_mod_asset(asset->asset_id, AssetType::Texture);
+	nextgen_load_data(TextureAsset* asset, const int32_t lods) -> bool {
+		auto mod_file = find_mod_asset(asset->asset_id, AssetType::TextureStream);
 		if (!mod_file) {
-			return game_NextGen_LoadData(asset, lods);
+			return game_nextgen_load_data(asset, lods);
 		}
 
-		if (g_settings.log_mod_access) {
-			g_output << "[tex_nextgen] " << std::hex << asset_id << " is modded\n";
+		if (dstorage_context == nullptr || texture_lock == nullptr) {
+			g_output << "[tex_nextgen] " << std::hex << asset->asset_id << " is modded but dstorage has not initialized?\n";
 			g_output.flush();
 		}
 
-		CriticalSectionGuard guard(ptr_TextureMutex);
-		if(!guard.success) {
-			return false;
+		if (g_settings.log_mod_access || true) {
+			g_output << "[tex_nextgen] " << std::hex << asset->asset_id << " is modded\n";
+			g_output.flush();
 		}
 
-		HighMipData data;
-		if(!game_InitHighMips(asset, &data, lods)) {
-			return false;
+		// get nxdstorage_context from function 0x1416ffc70 -> check if nxdstorage_context->name is "Texture"
+		// 0x14678e0c0
+
+		HighMipData data {};
+		{
+			CriticalSectionGuard guard(texture_lock);
+
+			if(!guard.success) {
+				g_output << "[tex_nextgen] " << std::hex << asset->asset_id << " cannot lock texture mutex\n";
+				g_output.flush();
+				return false;
+			}
+
+			if(!game_init_mips(asset, &data, lods)) { // 0x14135f910
+				g_output << "[tex_nextgen] " << std::hex << asset->asset_id << " cannot create texture mips\n";
+				g_output.flush();
+				return false;
+			}
+
+			game_create_texture(asset, &data); // 0x141350230
 		}
 
-		game_CreateTextureResource(asset, &data);
+		auto desc = data.desc->d3d12->resource;
+		auto mipLevels = data.desc->d3d12->mipLevels;
+		auto width = data.desc->d3d12->width;
+		auto height = data.desc->d3d12->height;
 
-		asset->lods &= 0xf0;
-		asset->lods |= lods & 0xf;
+		for (uint32_t rangeIndex = 0; rangeIndex < data.numRanges; ++rangeIndex) {
+			const uint32_t mip = rangeIndex % mipLevels;
+			const uint32_t slice = rangeIndex / mipLevels;
+			const uint8_t* offset = mod_file->buffer + data.fileRanges[rangeIndex].start;
+			const uint64_t size = data.memRanges[rangeIndex].size;
+			const uint32_t mipWidth = std::max(1u, width >> mip);
+			const uint32_t mipHeight = std::max(1u, height >> mip);
 
-		auto mipLevels = data->desc->d3d12->mipLevels;
-		auto width = data>desc->d3d12->width;
-		auto height = data->desc->d3d12->height;
+			{
+				CriticalSectionGuard guard(&dstorage_context->lock);
+				if(!guard.success) {
+					g_output << "[tex_nextgen] " << std::hex << asset->asset_id << " cannot lock dstorage mutex\n";
+					g_output.flush();
+					return false;
+				}
 
-		for (uint32_t rangeIndex = 0; rangeIndex < numRanges; ++rangeIndex) {
-			auto mip = rangeIndex % mipLevels;
-			auto slice = rangeIndex / mipLevels;
-			auto offset = data.buffer + ranges[rangeIndex].start;
-			auto size = ranges[rangeIndex].size;
-			dstorage_queue->EnqueueRequest(data->desc->d3d12->desc, ... DSTORAGE_SOURCE_MEMORY ... SubResourceIndex = slice, DSTORAGE_REQUEST_DESTINATION_TEXTURE_REGION { 0, 0, 0, width >> mip, height >> mip, 1, });
+				NxDStorageWorkerEntry *fence_link = game_get_link(dstorage_context, 0x78, 0x10);
+				memset(fence_link, 0, 0x78);
+				fence_link->resource = desc;
+				fence_link->mipIndex = -1;
+
+				if (dstorage_context->flushSignal) {
+					fence_link->flushSignal = INVALID_HANDLE_VALUE;
+				} else if(fence_link->next != fence_link) {
+					HANDLE signal = CreateEventW(nullptr, 1, 0, nullptr);
+					dstorage_context->flushSignal = signal;
+					fence_link->flushSignal = signal;
+				}
+
+				if (dstorage_context->last) {
+					dstorage_context->last->next = fence_link;
+				}
+
+				dstorage_context->last = fence_link;
+
+				if (!dstorage_context->first) {
+					dstorage_context->first = fence_link;
+				}
+
+				SetEvent(dstorage_context->updateSignal);
+			}
+
+			DSTORAGE_REQUEST req {};
+			req.Options.CompressionFormat = DSTORAGE_COMPRESSION_FORMAT_NONE;
+			req.Options.SourceType = DSTORAGE_REQUEST_SOURCE_MEMORY; // todo: FILE
+			req.Options.DestinationType = DSTORAGE_REQUEST_DESTINATION_TEXTURE_REGION;
+			req.Source.Memory.Source = offset;
+			req.Source.Memory.Size = size;
+			req.Destination.Texture.Resource = desc;
+			req.Destination.Texture.SubresourceIndex = slice;
+			req.Destination.Texture.Region = { 0, 0, 0, mipWidth, mipHeight, 1 };
+			dstorage_context->queue->EnqueueRequest(&req);
 		}
-		dstorage_queue->Submit();
+
+		game_flush_dstorage_queue(dstorage_context); // 0x141701c00 -> this triggers ID3DQueue->Submit and fencing
+
+		asset->loaded_lods &= 0xf0;
+		asset->loaded_lods |= lods & 0xf;
 
 		return true;
-		*/
-		return game_nextgen_load_data(asset, lods);
 	}
 
 	auto
@@ -1013,11 +1023,6 @@ namespace rivet_hook {
 
 				mod_list.clear();
 			}
-		}
-
-		if (dstorage_queue) {
-			dstorage_queue->Release();
-			dstorage_queue = nullptr;
 		}
 	}
 } // namespace rivet_hook
