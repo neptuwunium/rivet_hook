@@ -65,6 +65,23 @@ namespace rivet_hook {
 		Count = 0x20,
 	};
 
+	enum class AssetFileStatus : uint32_t {
+		Closed,
+		Pending,
+		OpenComplete,
+		ReadComplete,
+		OperationCanceling,
+		OperationCanceled,
+		OutOfBounds = 0x80000002,
+		DoesNotExist = 0x80000003,
+		StatFailed = 0x80000007,
+		OpenFailed = 0x80000008,
+		ReadFailed = 0x8000000a,
+		NotInstalled = 0x8000000b,
+		OperationAborted = 0x8000000c,
+		BuildFailed = 0x80000014,
+	};
+
 	struct ArchiveAsset {
 		uint32_t index;
 		uint32_t offset;
@@ -146,13 +163,14 @@ namespace rivet_hook {
 	static_assert(sizeof(SortFunc) == 0x10, "SortFunc size mismatch");
 
 	struct AssetFile {
-		uint32_t status;
+		AssetFileStatus status;
 		int32_t padding;
 		uint64_t data;
 		AssetId asset_id;
+		uint64_t size;
 	};
 
-	static_assert(sizeof(AssetFile) == 0x18, "AssetFile size mismatch");
+	static_assert(sizeof(AssetFile) == 0x20, "AssetFile size mismatch");
 
 	struct MipDataRange {
 		uint64_t start;
@@ -315,6 +333,8 @@ namespace rivet_hook {
 	using open_file_t = void (*)(intptr_t self, AssetFile *file, AssetId asset_id, AssetType type, int32_t platform, uint8_t manager_id);
 	using read_file_t = bool (*)(intptr_t self, AssetFile *file, char *buffer, size_t offset, size_t size, int32_t priority, int32_t unknown2);
 	using close_file_t = void (*)(intptr_t self, AssetFile *file);
+	using resolve_handle_t = int64_t (*) (intptr_t self, AssetId asset_id, AssetType type, int32_t platform, uint8_t manager_id);
+	using set_file_status_t = void (*) (AssetFile* file, AssetFileStatus status);
 	using decode_url_t = void (*)(const char *, unsigned int, char *, unsigned int *);
 	using mgr_load_asset_t = intptr_t (*)(intptr_t, AssetId, AssetId, const char *, intptr_t, intptr_t, int32_t);
 	using sort_t = void (*)(intptr_t elems, int32_t count, int32_t element_size, SortFunc dispatcher);

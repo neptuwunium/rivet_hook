@@ -23,7 +23,7 @@
 DEFINE_GUID(IID_IDStorageFile, 0x5de95e7b, 0x955a, 0x4868, 0xa7, 0x3c, 0x24, 0x3b, 0x29, 0xf4, 0xb8, 0xda);
 
 namespace rivet_hook {
-	constexpr uint64_t RIVET_SENTINEL = 0xffffffff'ffffff00;
+	constexpr int64_t RIVET_SENTINEL = 0x7fffffff'ffffff00;
 
 	struct MemoryFile {
 		const uint8_t *buffer = nullptr;
@@ -164,6 +164,8 @@ namespace rivet_hook {
 	open_file_t game_open_file = nullptr;
 	read_file_t game_read_file = nullptr;
 	close_file_t game_close_file = nullptr;
+	resolve_handle_t game_resolve_handle = nullptr;
+	set_file_status_t game_set_file_status = nullptr;
 	decode_url_t game_decode_url = nullptr;
 	mgr_load_asset_t game_mgr_load_asset = nullptr;
 	sort_t game_sort = nullptr;
@@ -508,49 +510,81 @@ namespace rivet_hook {
 	auto
 	open_file(const intptr_t self, AssetFile *file, const AssetId asset_id, AssetType type, const int32_t platform, const uint8_t manager_id) -> void {
 		if (g_settings.log_loose_io) {
-			g_output << "[loose][open ] " << std::hex << asset_id << " type: " << static_cast<int32_t>(type) << " manager: " << static_cast<uint32_t>(manager_id) << " status: " << file->status
+			g_output << "[loose][open ] " << std::hex << asset_id << " type: " << static_cast<int32_t>(type) << " manager: " << static_cast<uint32_t>(manager_id) << " status: " << static_cast<uint32_t>(file->status)
 					 << " padding: " << file->padding << " data: " << file->data << " asset_id: " << file->asset_id << "\n";
+			g_output.flush();
+		}
+
+		if (type < AssetType::Count) {
+			if (const auto *mod_file = find_mod_asset(asset_id, type); mod_file != nullptr) {
+				if (g_settings.log_mod_access) {
+					g_output.flush();
+				}
+
+				file->status = AssetFileStatus::OpenComplete;
+				file->padding = 0;
+				file->data = RIVET_SENTINEL | static_cast<uint8_t>(static_cast<int32_t>(type));
+				file->asset_id = asset_id;
+				file->size = mod_file->size;
+				return;
+			}
+		}
+
+		game_open_file(self, file, asset_id, type, platform, manager_id);
+	}
+
+	auto
+	resolve_handle(const intptr_t self, const AssetId asset_id, AssetType type, const int32_t platform, const uint8_t manager_id) -> int64_t {
+		if (g_settings.log_loose_io) {
+			g_output << "[loose][reslv] " << std::hex << asset_id << " type: " << static_cast<int32_t>(type) << " manager: " << static_cast<uint32_t>(manager_id) << "\n";
+			g_output.flush();
 		}
 
 		if (type < AssetType::Count) {
 			if (has_mod_asset(asset_id, type)) {
 				if (g_settings.log_mod_access) {
-					g_output << "[loose][open ] " << std::hex << asset_id << " is modded\n";
+					g_output << "[loose][reslv] " << std::hex << asset_id << " is modded\n";
 					g_output.flush();
 				}
 
-				file->status = 2;
-				file->padding = 0;
-				file->data = RIVET_SENTINEL | static_cast<uint8_t>(static_cast<int32_t>(type));
-				file->asset_id = asset_id;
-				return;
+				return RIVET_SENTINEL | static_cast<uint8_t>(static_cast<int32_t>(type));
 			}
 		}
 
-		g_output.flush();
-		game_open_file(self, file, asset_id, type, platform, manager_id);
+		return game_resolve_handle(self, asset_id, type, platform, manager_id);
 	}
 
 	auto
 	read_file(const intptr_t self, AssetFile *file, char *buffer, const size_t offset, const size_t size, const int32_t priority, const int32_t unknown2) -> bool {
 		if (g_settings.log_loose_io) {
-			g_output << "[loose][read ] offset: " << std::hex << offset << " size: " << size << " status: " << file->status << " padding: " << file->padding << " data: " << file->data
+			g_output << "[loose][read ] offset: " << std::hex << offset << " size: " << size << " status: " << static_cast<uint32_t>(file->status) << " padding: " << file->padding << " data: " << file->data
 					 << " asset_id: " << file->asset_id << "\n";
 			g_output.flush();
 		}
 
 		if (const auto type = static_cast<AssetType>(file->data & 0xFF); (file->data & RIVET_SENTINEL) == RIVET_SENTINEL && type < AssetType::Count) {
-			file->status = 0x8000000a;
+			if (g_settings.log_mod_access) {
+				g_output << "[loose][read ] offset: " << std::hex << offset << " size: " << size << " status: " << static_cast<uint32_t>(file->status) << " padding: " << file->padding << " data: " << file->data
+						 << " asset_id: " << file->asset_id << "\n";
+				g_output.flush();
+			}
 
 			if (const auto *mod_file = find_mod_asset(file->asset_id, type); mod_file != nullptr) {
 				if (offset + size > mod_file->size) {
+					game_set_file_status(file, AssetFileStatus::OutOfBounds);
 					return false;
 				}
 
 				std::copy_n(mod_file->buffer + offset, size, buffer);
 
-				file->status = 3;
+				game_set_file_status(file, AssetFileStatus::ReadComplete);
 				return true;
+			}
+
+			game_set_file_status(file, AssetFileStatus::ReadFailed);
+			if (g_settings.log_mod_access) {
+				g_output << "[loose][read ] trying to read something that does not exist.\n";
+				g_output.flush();
 			}
 
 			return false;
@@ -562,12 +596,12 @@ namespace rivet_hook {
 	auto
 	close_file(const intptr_t self, AssetFile *file) -> void {
 		if (g_settings.log_loose_io) {
-			g_output << "[loose][close] status: " << file->status << " padding: " << file->padding << " data: " << file->data << " asset_id: " << file->asset_id << "\n";
+			g_output << "[loose][close] status: " << static_cast<uint32_t>(file->status) << " padding: " << file->padding << " data: " << file->data << " asset_id: " << file->asset_id << "\n";
 			g_output.flush();
 		}
 
 		if (const auto type = static_cast<AssetType>(file->data & 0xFF); (file->data & RIVET_SENTINEL) == RIVET_SENTINEL && type < AssetType::Count) {
-			file->data = 0;
+			game_set_file_status(file, AssetFileStatus::Closed);
 		} else {
 			game_close_file(self, file);
 		}
@@ -981,6 +1015,7 @@ namespace rivet_hook {
 
 		// functions we need to call for reimpl_load_ops
 		LOAD_FUNC_ADDRESS(game_resolve_asset, "resolve asset", resolve_asset_t, RESOLVE_ASSET_SIGNATURE);
+		LOAD_FUNC_ADDRESS(game_set_file_status, "set file status", set_file_status_t, SET_FILE_STATUS_SIGNATURE);
 		LOAD_FUNC_ADDRESS(game_alloc_asset, "alloc asset", alloc_asset_t, ALLOC_ASSET_RCRA_SIGNATURE);
 		LOAD_FUNC_ADDRESS(game_commit_assets, "commit asset", commit_assets_t, COMMIT_ASSET_RCRA_SIGNATURE);
 		LOAD_FUNC_ADDRESS(game_is_asset_valid, "is asset header valid", is_asset_valid_t, IS_ASSET_HEADER_VALID_RCRA_SIGNATURE);
@@ -1018,6 +1053,7 @@ namespace rivet_hook {
 		create_hook("is installed asset", g_game_module, IS_INSTALLED_ASSET_SIGNATURE, reinterpret_cast<LPVOID>(&is_installed_asset), reinterpret_cast<LPVOID *>(&game_is_installed_asset));
 
 		// loose io
+		create_hook("resolve handle", reinterpret_cast<LPVOID>(archivefs_vtable[ARCHIVEFS_VTABLE_RESOLVEHANDLE]), reinterpret_cast<LPVOID>(&resolve_handle), reinterpret_cast<LPVOID *>(&game_resolve_handle));
 		create_hook("open file", reinterpret_cast<LPVOID>(archivefs_vtable[ARCHIVEFS_VTABLE_OPENFILE]), reinterpret_cast<LPVOID>(&open_file), reinterpret_cast<LPVOID *>(&game_open_file));
 		create_hook("read file", reinterpret_cast<LPVOID>(archivefs_vtable[ARCHIVEFS_VTABLE_READFILE]), reinterpret_cast<LPVOID>(&read_file), reinterpret_cast<LPVOID *>(&game_read_file));
 		create_hook("close file", reinterpret_cast<LPVOID>(archivefs_vtable[ARCHIVEFS_VTABLE_CLOSEFILE]), reinterpret_cast<LPVOID>(&close_file), reinterpret_cast<LPVOID *>(&game_close_file));
