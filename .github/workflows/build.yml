@@ -6,7 +6,7 @@ name: Build
 
 on:
   push:
-    branches: [ develop ]
+    branches: [ stable ]
 
 jobs:
   build:

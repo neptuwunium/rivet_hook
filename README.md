@@ -99,6 +99,7 @@ I am currently investigating if the following is possible in the engine;
 - hot reloading of assets
 - no-clip
 - freecam
+- prevent the game from pausing when alt tabbed
 
 ### Caveats
 

@@ -472,6 +472,8 @@ namespace rivet_hook {
 		if (type < AssetType::Count) {
 			if (const auto *mod_file = find_mod_asset(asset_id, type); mod_file != nullptr) {
 				if (g_settings.log_mod_access) {
+					g_output << "[loose][open ] " << std::hex << asset_id << " type: " << static_cast<int32_t>(type) << " manager: " << static_cast<uint32_t>(manager_id) << " status: " << static_cast<uint32_t>(file->status)
+							 << " padding: " << file->padding << " data: " << file->data << " asset_id: " << file->asset_id << "\n";
 					g_output.flush();
 				}
 
@@ -501,7 +503,7 @@ namespace rivet_hook {
 					g_output.flush();
 				}
 
-				return RIVET_SENTINEL | static_cast<uint8_t>(static_cast<int32_t>(type));
+				return asset_id;
 			}
 		}
 
@@ -549,15 +551,18 @@ namespace rivet_hook {
 
 	auto
 	close_file(const intptr_t self, AssetFile *file) -> void {
-		if (g_settings.log_loose_io) {
-			g_output << "[loose][close] status: " << static_cast<uint32_t>(file->status) << " padding: " << file->padding << " data: " << file->data << " asset_id: " << file->asset_id << "\n";
-			g_output.flush();
-		}
-
+		auto has_mod = false;
 		if (const auto type = static_cast<AssetType>(file->data & 0xFF); (file->data & RIVET_SENTINEL) == RIVET_SENTINEL && type < AssetType::Count) {
 			game_set_file_status(file, AssetFileStatus::Closed);
+			file->data = 0;
+			has_mod = g_settings.log_mod_access;
 		} else {
 			game_close_file(self, file);
+		}
+
+		if (g_settings.log_loose_io || has_mod) {
+			g_output << "[loose][close] status: " << static_cast<uint32_t>(file->status) << " padding: " << file->padding << " data: " << file->data << " asset_id: " << file->asset_id << "\n";
+			g_output.flush();
 		}
 	}
 
