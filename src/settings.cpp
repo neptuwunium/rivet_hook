@@ -72,7 +72,7 @@ namespace rivet_hook {
 			LOAD_SETTING_EX("assets", bool, enable_asset_loader, "enabled");
 			LOAD_SETTING_EX("assets", bool, log_mod_access, "log");
 			LOAD_SETTING_EX("assets", bool, log_mod_state, "verbose");
-			// LOAD_SETTING_EX("assets", bool, force_legacy_textures, "disable_dstorage");
+			LOAD_SETTING_EX("assets", bool, force_legacy_textures, "disable_dstorage");
 			LOAD_SETTING_EX("assets", std::vector<std::string>, asset_paths, "paths");
 
 			LOAD_SETTING_EX("log", bool, log_cohtml, "cohtml");
@@ -136,7 +136,7 @@ namespace rivet_hook {
 		SAVE_SETTING_EX("assets", asset_paths, "paths", "list of paths to load assets from, order is priority. first entry is least priority.");
 		SAVE_SETTING_EX("assets", log_mod_access, "log", "logs when mod files are accessed; disable by default because log noise");
 		SAVE_SETTING_EX("assets", log_mod_state, "verbose", "logs the mod pipeline state; disable by default because log noise");
-		SAVE_SETTING_EX("assets", force_legacy_textures, "disable_dstorage", "force disables directstorage, will have a performance impact. dstorage is currently not supported");
+		SAVE_SETTING_EX("assets", force_legacy_textures, "disable_dstorage", "force disables directstorage, will have a performance impact. dstorage is currently not fully supported, crashes may happen.");
 
 		SAVE_SETTING_EX("log", log_cohtml, "cohtml", "logs coherent ui url decode requests; disable by default because log noise");
 		SAVE_SETTING_EX("log", log_paths, "paths", "logs asset paths as they are loaded; disable by default because log noise");

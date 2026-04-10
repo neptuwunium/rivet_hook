@@ -249,6 +249,9 @@ namespace rivet_hook {
 				ddl::list_versions();
 			}
 
+			// ReSharper disable once CppZeroConstantCanBeReplacedWithNullptr
+			MH_EnableHook(MH_ALL_HOOKS);
+
 			g_output << "[rivet] init complete\n";
 			g_output.flush();
 		}

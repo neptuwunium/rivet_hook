@@ -20,8 +20,7 @@
 
 #include "MinHook.h"
 
-DEFINE_GUID(IID_IDStorageQueue1, 0xdd2f482c, 0x5eff, 0x41e8, 0x9c, 0x9e, 0xd2, 0x37, 0x4b, 0x27, 0x81, 0x28);
-DEFINE_GUID(IID_IDStorageFactory, 0x6924ea0c, 0xc3cd, 0x4826, 0xb1, 0x0a, 0xf6, 0x4f, 0x4e, 0xd9, 0x27, 0xc1);
+DEFINE_GUID(IID_IDStorageFile, 0x5de95e7b, 0x955a, 0x4868, 0xa7, 0x3c, 0x24, 0x3b, 0x29, 0xf4, 0xb8, 0xda);
 
 namespace rivet_hook {
 	constexpr uint64_t RIVET_SENTINEL = 0xffffffff'ffffff00;
@@ -33,6 +32,7 @@ namespace rivet_hook {
 		size_t size = 0;
 		AssetLanguage language = AssetLanguage::None;
 		std::filesystem::path original_path;
+		Microsoft::WRL::ComPtr<IDStorageFile> dstorageFile = nullptr;
 
 		explicit MemoryFile(const std::filesystem::path &path): original_path(path) {
 			file = CreateFileW(path.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
@@ -81,6 +81,26 @@ namespace rivet_hook {
 				CloseHandle(file);
 				file = INVALID_HANDLE_VALUE;
 			}
+
+			dstorageFile.Reset();
+		}
+
+		auto
+		get_dstorage(IDStorageFactory * factory) -> IDStorageFile * {
+			if (!factory) {
+				g_output << "[dstorage] cannot map " << original_path << " to dstorage, no factory\n";
+				g_output.flush();
+				return nullptr;
+			}
+
+			if (!dstorageFile) {
+				if (FAILED(factory->OpenFile(original_path.c_str(), IID_IDStorageFile, reinterpret_cast<void**>(dstorageFile.GetAddressOf())))) {
+					g_output << "[dstorage] cannot map " << original_path << " to dstorage\n";
+					g_output.flush();
+				}
+			}
+
+			return dstorageFile.Get();
 		}
 	};
 
@@ -156,9 +176,15 @@ namespace rivet_hook {
 	window_init_t game_window_init = nullptr;
 	is_asset_valid_t game_is_asset_valid = nullptr;
 	nextgen_load_data_t game_nextgen_load_data = nullptr;
-	dstorage_get_factory_t game_dstorage_get_factory = nullptr;
+	init_mips_t game_init_mips = reinterpret_cast<init_mips_t>(0x14135f910);
+	get_storage_link_t game_get_storage_link = reinterpret_cast<get_storage_link_t>(0x1416ff8c0);
+	create_texture_resource_t game_create_texture_resource = reinterpret_cast<create_texture_resource_t>(0x141350230);
+	dstorage_flush_queue_t game_dstorage_flush_queue = reinterpret_cast<dstorage_flush_queue_t>(0x141701c00);
 	dstorage_enqueue_request_t game_dstorage_enqueue_request = nullptr;
-	LPVOID dll_dstorage_get_factory = nullptr;
+	dstorage_create_context_t game_dstorage_create_context = nullptr;
+	dstorage_init_t game_dstorage_init = nullptr;
+
+	LPVOID hook_dstorage_create_context = reinterpret_cast<LPVOID>(0x1'416ffc70);
 
 	create_asset_t *game_create_asset = nullptr;
 	void *game_create_asset_data = nullptr;
@@ -168,7 +194,7 @@ namespace rivet_hook {
 	bool *disable_directstorage = nullptr;
 	IDStorageFactory* dstorage_factory = nullptr;
 	NxDStorageWorkerContext* dstorage_context = nullptr;
-	LPCRITICAL_SECTION texture_lock = nullptr;
+	LPCRITICAL_SECTION texture_lock = reinterpret_cast<LPCRITICAL_SECTION>(0x14678e0c0);
 
 	auto
 	create_asset_id(AssetId *asset_id, const char *asset_name) -> AssetId * {
@@ -218,19 +244,14 @@ namespace rivet_hook {
 
 	auto
 	hook_cohtml() -> void {
-		const HMODULE mod = GetModuleHandleA("cohtml.WindowsDesktop.dll");
-		if (!mod) {
-			g_output << "cannot hook cohtml, not loaded yet.\n";
-			return;
+		if (!GetModuleHandleW(L"cohtml.WindowsDesktop.dll")) {
+			LoadLibraryW(L"cohtml.WindowsDesktop.dll");
 		}
 
-		const auto proc = reinterpret_cast<LPVOID>(GetProcAddress(mod, decode_url_string_name));
-		if (!proc) {
-			g_output << "cannot hook cohtml, export not found.\n";
-			return;
+		if (const auto status = MH_CreateHookApi(L"cohtml.WindowsDesktop.dll", decode_url_string_name, reinterpret_cast<LPVOID>(decode_url), reinterpret_cast<LPVOID *>(&game_decode_url));
+			status != MH_OK) {
+			g_output << "[cohtml] cannot hook cohtml: " << MH_StatusToString(status) << "\n";
 		}
-
-		create_hook("cohtml", proc, reinterpret_cast<LPVOID>(decode_url), reinterpret_cast<LPVOID *>(&game_decode_url));
 	}
 
 	auto
@@ -758,90 +779,83 @@ namespace rivet_hook {
 	}
 
 	auto
-	dstorage_get_factory(REFIID riid, void** ppv) -> HRESULT {
-		const auto result = game_dstorage_get_factory(riid, ppv);
+	dstorage_init(NxDStorage* self, ID3D12Device* device, NxDStorageConfig* config) -> bool {
+		const auto result = game_dstorage_init(self, device, config);
 
-		if (memcmp(&riid, &IID_IDStorageFactory, sizeof(IID_IDStorageFactory)) == 0) {
-			MH_DisableHook(dll_dstorage_get_factory);
-			dstorage_factory = *reinterpret_cast<IDStorageFactory **>(ppv);
+		if (dstorage_factory != nullptr && dstorage_factory != self->factory) {
+			g_output << "[dstorage] factory is being remade!!\n";
+			g_output.flush();
+		} else {
+			dstorage_factory = self->factory;
+			g_output << "[dstorage] factory found\n";
+			g_output.flush();
 		}
 
 		return result;
 	}
 
 	auto
-	hook_dstorage_factory() -> void {
-		g_output << "[dstorage] attempting to find factory ptr\n";
-		g_output.flush();
+	dstorage_create_context(NxDStorageWorkerContext* context, void* callback, const int bufferSize, const char* name) {
+		const auto result = game_dstorage_create_context(context, callback, bufferSize, name);
 
-		auto directStorageModule = GetModuleHandleA("dstorage.dll");
-		if (!directStorageModule) {
-			directStorageModule = LoadLibraryA("dstorage.dll");
+		if (name && name[0] && strcmp(name, "Texture") == 0) {
+			dstorage_context = result;
+			MH_DisableHook(hook_dstorage_create_context);
 		}
 
-		if (!directStorageModule) {
-			g_output << "[dstorage] dstorage.dll is not present\n";
-			g_output.flush();
-			return;
-		}
-
-		dll_dstorage_get_factory = reinterpret_cast<LPVOID>(GetProcAddress(directStorageModule, "DStorageGetFactory"));
-		create_hook("dstorage get factory", dll_dstorage_get_factory, reinterpret_cast<LPVOID>(&dstorage_get_factory), reinterpret_cast<LPVOID *>(&game_dstorage_get_factory));
+		return result;
 	}
 
 	auto
-	nextgen_load_data(TextureAsset* asset, const int32_t lods) -> bool {
+	nextgen_load_data(TextureAsset* asset, const int32_t levelOfDetail) -> bool {
 		auto mod_file = find_mod_asset(asset->asset_id, AssetType::TextureStream);
 		if (!mod_file) {
-			return game_nextgen_load_data(asset, lods);
+			return game_nextgen_load_data(asset, levelOfDetail);
 		}
 
 		if (dstorage_context == nullptr || texture_lock == nullptr) {
-			g_output << "[tex_nextgen] " << std::hex << asset->asset_id << " is modded but dstorage has not initialized?\n";
+			g_output << "[nxtgn] " << std::hex << asset->asset_id << " is modded but dstorage has not initialized?\n";
 			g_output.flush();
 		}
 
 		if (g_settings.log_mod_access || true) {
-			g_output << "[tex_nextgen] " << std::hex << asset->asset_id << " is modded\n";
+			g_output << "[nxtgn] " << std::hex << asset->asset_id << " is modded\n";
 			g_output.flush();
 		}
 
-		// get nxdstorage_context from function 0x1416ffc70 -> check if nxdstorage_context->name is "Texture"
-		// 0x14678e0c0
-
 		HighMipData data {};
 		{
+			// ReSharper disable once CppTooWideScopeInitStatement
 			CriticalSectionGuard guard(texture_lock);
 
 			if(!guard.success) {
-				g_output << "[tex_nextgen] " << std::hex << asset->asset_id << " cannot lock texture mutex\n";
+				g_output << "[nxtgn] " << std::hex << asset->asset_id << " cannot lock texture mutex\n";
 				g_output.flush();
 				return false;
 			}
 
-			if(!game_init_mips(asset, &data, lods)) { // 0x14135f910
-				g_output << "[tex_nextgen] " << std::hex << asset->asset_id << " cannot create texture mips\n";
-				g_output.flush();
+			if(!game_init_mips(asset, &data, levelOfDetail)) {
 				return false;
 			}
 
-			game_create_texture(asset, &data); // 0x141350230
+			game_create_texture_resource(asset, &data);
 		}
 
-		auto desc = data.desc->d3d12->resource;
-		auto mipLevels = data.desc->d3d12->mipLevels;
-		auto width = data.desc->d3d12->width;
-		auto height = data.desc->d3d12->height;
+		auto desc = *data.desc->resource12;
+		auto mipLevels = data.mipLevels;
+		auto width = data.width;
+		auto height = data.height;
 
 		for (uint32_t rangeIndex = 0; rangeIndex < data.numRanges; ++rangeIndex) {
 			const uint32_t mip = rangeIndex % mipLevels;
 			const uint32_t slice = rangeIndex / mipLevels;
-			const uint8_t* offset = mod_file->buffer + data.fileRanges[rangeIndex].start;
+			const uint64_t offset = data.fileRanges[rangeIndex].start;
 			const uint64_t size = data.memRanges[rangeIndex].size;
 			const uint32_t mipWidth = std::max(1u, width >> mip);
 			const uint32_t mipHeight = std::max(1u, height >> mip);
 
 			{
+				// ReSharper disable once CppTooWideScopeInitStatement
 				CriticalSectionGuard guard(&dstorage_context->lock);
 				if(!guard.success) {
 					g_output << "[tex_nextgen] " << std::hex << asset->asset_id << " cannot lock dstorage mutex\n";
@@ -849,48 +863,65 @@ namespace rivet_hook {
 					return false;
 				}
 
-				NxDStorageWorkerEntry *fence_link = game_get_link(dstorage_context, 0x78, 0x10);
-				memset(fence_link, 0, 0x78);
-				fence_link->resource = desc;
-				fence_link->mipIndex = -1;
+				auto *link = static_cast<NxDStorageWorkerEntry *>(game_get_storage_link(dstorage_context, 0x78, 0x10));
+				if (link == nullptr) {
+					g_output << "[tex_nextgen] " << std::hex << asset->asset_id << " cannot push dstorage state\n";
+					g_output.flush();
+					return false;
+				}
+
+				memset(link, 0, 0x78);
+				link->resource = desc;
+				link->mipIndex = -1;
 
 				if (dstorage_context->flushSignal) {
-					fence_link->flushSignal = INVALID_HANDLE_VALUE;
-				} else if(fence_link->next != fence_link) {
+					link->flushSignal = INVALID_HANDLE_VALUE;
+				} else if(link->next != link) {
 					HANDLE signal = CreateEventW(nullptr, 1, 0, nullptr);
 					dstorage_context->flushSignal = signal;
-					fence_link->flushSignal = signal;
+					link->flushSignal = signal;
 				}
 
 				if (dstorage_context->last) {
-					dstorage_context->last->next = fence_link;
+					dstorage_context->last->next = link;
 				}
 
-				dstorage_context->last = fence_link;
+				dstorage_context->last = link;
 
 				if (!dstorage_context->first) {
-					dstorage_context->first = fence_link;
+					dstorage_context->first = link;
 				}
-
-				SetEvent(dstorage_context->updateSignal);
 			}
 
 			DSTORAGE_REQUEST req {};
 			req.Options.CompressionFormat = DSTORAGE_COMPRESSION_FORMAT_NONE;
-			req.Options.SourceType = DSTORAGE_REQUEST_SOURCE_MEMORY; // todo: FILE
 			req.Options.DestinationType = DSTORAGE_REQUEST_DESTINATION_TEXTURE_REGION;
-			req.Source.Memory.Source = offset;
-			req.Source.Memory.Size = size;
+			if (auto file = mod_file->get_dstorage(dstorage_factory)) {
+				req.Options.SourceType = DSTORAGE_REQUEST_SOURCE_FILE;
+				req.Source.File.Source = file;
+				req.Source.File.Offset = offset;
+				req.Source.File.Size = size;
+			} else {
+				req.Options.SourceType = DSTORAGE_REQUEST_SOURCE_MEMORY;
+				req.Source.Memory.Source = mod_file->buffer + offset;
+				req.Source.Memory.Size = size;
+			}
 			req.Destination.Texture.Resource = desc;
 			req.Destination.Texture.SubresourceIndex = slice;
 			req.Destination.Texture.Region = { 0, 0, 0, mipWidth, mipHeight, 1 };
+			req.CancellationTag = 0;
+			req.UncompressedSize = size;
 			dstorage_context->queue->EnqueueRequest(&req);
 		}
 
-		game_flush_dstorage_queue(dstorage_context); // 0x141701c00 -> this triggers ID3DQueue->Submit and fencing
+		SetEvent(dstorage_context->updateSignal);
+
+		// this triggers ID3DQueue->Submit, if not present the game will eventually crash the gpu
+		game_dstorage_flush_queue(dstorage_context);
 
 		asset->loaded_lods &= 0xf0;
-		asset->loaded_lods |= lods & 0xf;
+		asset->loaded_lods |= levelOfDetail & 0xf;
+		asset->max_lod = levelOfDetail;
 
 		return true;
 	}
@@ -991,10 +1022,10 @@ namespace rivet_hook {
 		create_hook("read file", reinterpret_cast<LPVOID>(archivefs_vtable[ARCHIVEFS_VTABLE_READFILE]), reinterpret_cast<LPVOID>(&read_file), reinterpret_cast<LPVOID *>(&game_read_file));
 		create_hook("close file", reinterpret_cast<LPVOID>(archivefs_vtable[ARCHIVEFS_VTABLE_CLOSEFILE]), reinterpret_cast<LPVOID>(&close_file), reinterpret_cast<LPVOID *>(&game_close_file));
 
-		hook_dstorage_factory();
-		// create_hook("nextgen load", reinterpret_cast<LPVOID>(0x14135fcd0), reinterpret_cast<LPVOID>(&nextgen_load_data), reinterpret_cast<LPVOID *>(&game_nextgen_load_data));
+		create_hook("dstoarge init", reinterpret_cast<LPVOID>(0x1416fd4a0), reinterpret_cast<LPVOID>(&dstorage_init), reinterpret_cast<LPVOID *>(&game_dstorage_init));
+		create_hook("nextgen load", reinterpret_cast<LPVOID>(0x14135fcd0), reinterpret_cast<LPVOID>(&nextgen_load_data), reinterpret_cast<LPVOID *>(&game_nextgen_load_data));
+		create_hook("create dstorage context", hook_dstorage_create_context, reinterpret_cast<LPVOID>(&dstorage_create_context), reinterpret_cast<LPVOID *>(&game_dstorage_create_context));
 
-		// disable fencing
 		// NOTE: This bricks DirectStorage, need to find a workaround for "next gen" texture fencing.
 		if (g_settings.force_legacy_textures) {
 			// needed to reset fencing a second time once the game starts.
@@ -1023,6 +1054,10 @@ namespace rivet_hook {
 
 				mod_list.clear();
 			}
+		}
+
+		if (dstorage_factory) {
+			dstorage_factory->Release();
 		}
 	}
 } // namespace rivet_hook

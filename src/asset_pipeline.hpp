@@ -178,26 +178,14 @@ namespace rivet_hook {
 	static_assert(offsetof(TextureAsset, resource) == 0x40, "TextureAsset resource offset mismatch");
 	static_assert(offsetof(TextureAsset, loaded_lods) == 0xc5, "TextureAsset loaded_lods offset mismatch");
 
-	struct GPUDesc12 {
-		ID3D12Resource* resource;
-		DXGI_FORMAT dxgi_format;
-		uint32_t alignment;
-		uint32_t width;
-		uint32_t height;
-		uint32_t arraySize;
-		uint32_t mipLevels;
-	};
-
-	static_assert(sizeof(GPUDesc12) == 0x20, "GPUDesc12 size mismatch");
-
 	struct GPUDesc11 {
 		ID3D11Resource* resource;
 		uint8_t unknown[0x30];
-		GPUDesc12* d3d12;
+		ID3D12Resource** resource12;
 	};
 
 	static_assert(sizeof(GPUDesc11) == 0x40, "GPUDesc12 size mismatch");
-	static_assert(offsetof(GPUDesc11, d3d12) == 0x38, "GPUDesc12 d3d12 offset mismatch");
+	static_assert(offsetof(GPUDesc11, resource12) == 0x38, "GPUDesc12 d3d12 offset mismatch");
 
 	struct NxChunk {
 		ID3D12Resource* resource; // - 0x30
@@ -244,7 +232,7 @@ namespace rivet_hook {
 		void* decompressedBuffer;
 		uint32_t decompressedSize;
 		uint32_t targetSize;
-		uint64_t flags;
+		uint64_t offsetInBuffer;
 		NxDStorageWorkerEntry* next;
 		HANDLE flushSignal;
 		uint64_t field_38;
@@ -282,6 +270,44 @@ namespace rivet_hook {
 	static_assert(offsetof(NxDStorageWorkerContext, flushSignal) == 0x58, "NxDStorageWorkerContext flushSignal offset mismatch");
 	static_assert(offsetof(NxDStorageWorkerContext, queue) == 0x78, "NxDStorageWorkerContext queue offset mismatch");
 
+	struct NxDStorage {
+		void* dstorageFiles;
+		uint64_t unknown1;
+		int64_t* handles;
+		uint64_t unknown2;
+		uint64_t unknown3;
+		CRITICAL_SECTION fileLock;
+		int64_t* unknown4;
+		uint64_t unknown5;
+		IDStorageFactory* factory;
+		IDStorageQueue* queue;
+		uint64_t unknown6;
+		IDStorageCustomDecompressionQueue1* customDecompressionQueue;
+		HANDLE dstorageDecompressSignal;
+		PTP_WAIT* dstorageDecompressWait;
+		PTP_POOL dstoragePool;
+		TP_CALLBACK_ENVIRON dstorageDecompressEnv;
+		HMODULE DStorageModule;
+		intptr_t DStorageGetFactory;
+		intptr_t DStorageSetConfiguration1;
+		uint32_t unknown7;
+		int32_t DStorageThreads;
+		ID3D12Device *D3D12Device;
+		intptr_t uploadGPUFence;
+		LPCRITICAL_SECTION lock;
+		int32_t queueCapacity;
+	};
+	static_assert(sizeof(NxDStorage) == 0x11c, "NxDStorage size mismatch");
+	static_assert(offsetof(NxDStorage, factory) == 0x60, "NxDStorage factory offset mismatch");
+
+	struct NxDStorageConfig {
+		int32_t bufferSize;
+		bool forceBuffering;
+		bool disableGPU;
+	};
+	static_assert(sizeof(NxDStorageConfig) == 6, "DStorageConfig queue offset mismatch");
+
+
 #pragma pack(pop)
 
 	using create_asset_id_t = AssetId *(*) (AssetId * result, const char *path);
@@ -303,6 +329,11 @@ namespace rivet_hook {
 	using window_init_t = bool (*)(intptr_t self);
 	using is_asset_valid_t = bool (*)(uint32_t magic, uint8_t manager_id, AssetId asset_id);
 	using nextgen_load_data_t = bool (*)(void* asset, int32_t minLod);
-	using dstorage_get_factory_t = HRESULT (STDMETHODCALLTYPE *)(REFIID riid, _COM_Outptr_ void** ppv);
+	using init_mips_t = HighMipData* (*)(TextureAsset* asset, HighMipData* data, int32_t numMips);
+	using get_storage_link_t = void* (*)(void* arg1, int64_t size, int32_t alignment);
+	using create_texture_resource_t = void* (*)(TextureAsset* asset, HighMipData* data);
+	using dstorage_flush_queue_t = void* (*)(NxDStorageWorkerContext* context);
 	using dstorage_enqueue_request_t = void (STDMETHODCALLTYPE *)(IDStorageQueue* self, const DSTORAGE_REQUEST* request);
+	using dstorage_create_context_t = NxDStorageWorkerContext* (*)(NxDStorageWorkerContext* self, void* callback, int32_t bufferSize, const char* name);
+	using dstorage_init_t = bool (*)(NxDStorage* self, ID3D12Device* device, NxDStorageConfig* config);
 } // namespace rivet_hook
