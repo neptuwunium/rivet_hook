@@ -185,14 +185,14 @@ namespace rivet_hook {
 		const char* name;
 		uint16_t nameOffset;
 		uint8_t unknown1[0x22];
-		uint32_t max_lod;
+		uint32_t resourceSize;
 		ID3D12Resource* resource;
 		uint8_t unknown2[0x7d];
 		uint8_t loaded_lods;
 	};
 
 	static_assert(offsetof(TextureAsset, asset_id) == 0x8, "TextureAsset asset_id offset mismatch");
-	static_assert(offsetof(TextureAsset, max_lod) == 0x3c, "TextureAsset max_lod offset mismatch");
+	static_assert(offsetof(TextureAsset, resourceSize) == 0x3c, "TextureAsset resourceSize offset mismatch");
 	static_assert(offsetof(TextureAsset, resource) == 0x40, "TextureAsset resource offset mismatch");
 	static_assert(offsetof(TextureAsset, loaded_lods) == 0xc5, "TextureAsset loaded_lods offset mismatch");
 
@@ -268,8 +268,8 @@ namespace rivet_hook {
 		NxDStorageWorkerEntry *buffers;
 		int32_t bufferSize;
 		int32_t bufferIndex;
-		NxDStorageWorkerEntry *first;
 		NxDStorageWorkerEntry *last;
+		NxDStorageWorkerEntry *first;
 		HANDLE updateSignal;
 		HANDLE resetSignal;
 		CRITICAL_SECTION lock;
@@ -281,8 +281,8 @@ namespace rivet_hook {
 		HANDLE queueSignal;
 	};
 	static_assert(sizeof(NxDStorageWorkerContext) == 0x88, "NxDStorageWorkerContext size mismatch");
-	static_assert(offsetof(NxDStorageWorkerContext, first) == 0x10, "NxDStorageWorkerContext first offset mismatch");
-	static_assert(offsetof(NxDStorageWorkerContext, last) == 0x18, "NxDStorageWorkerContext last offset mismatch");
+	static_assert(offsetof(NxDStorageWorkerContext, last) == 0x10, "NxDStorageWorkerContext last offset mismatch");
+	static_assert(offsetof(NxDStorageWorkerContext, first) == 0x18, "NxDStorageWorkerContext first offset mismatch");
 	static_assert(offsetof(NxDStorageWorkerContext, updateSignal) == 0x20, "NxDStorageWorkerContext updateSignal offset mismatch");
 	static_assert(offsetof(NxDStorageWorkerContext, lock) == 0x30, "NxDStorageWorkerContext lock offset mismatch");
 	static_assert(offsetof(NxDStorageWorkerContext, flushSignal) == 0x58, "NxDStorageWorkerContext flushSignal offset mismatch");

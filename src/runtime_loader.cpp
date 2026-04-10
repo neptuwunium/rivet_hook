@@ -879,14 +879,22 @@ namespace rivet_hook {
 		auto mipLevels = data.mipLevels;
 		auto width = data.width;
 		auto height = data.height;
+		auto totalSize = 0;
 
 		for (uint32_t rangeIndex = 0; rangeIndex < data.numRanges; ++rangeIndex) {
 			const uint32_t mip = rangeIndex % mipLevels;
 			const uint32_t slice = rangeIndex / mipLevels;
 			const uint64_t offset = data.fileRanges[rangeIndex].start;
 			const uint64_t size = data.memRanges[rangeIndex].size;
-			const uint32_t mipWidth = std::max(1u, width >> mip);
-			const uint32_t mipHeight = std::max(1u, height >> mip);
+			uint32_t mipWidth = width >> mip;
+			uint32_t mipHeight = height >> mip;
+			if (mipWidth < 1) {
+				mipWidth = 1;
+			}
+
+			if (mipHeight < 1) {
+				mipHeight = 1;
+			}
 
 			{
 				// ReSharper disable once CppTooWideScopeInitStatement
@@ -926,6 +934,7 @@ namespace rivet_hook {
 					dstorage_context->first = link;
 				}
 			}
+			SetEvent(dstorage_context->updateSignal);
 
 			DSTORAGE_REQUEST req {};
 			req.Options.CompressionFormat = DSTORAGE_COMPRESSION_FORMAT_NONE;
@@ -940,6 +949,7 @@ namespace rivet_hook {
 				req.Source.Memory.Source = mod_file->buffer + offset;
 				req.Source.Memory.Size = size;
 			}
+			totalSize += size;
 			req.Destination.Texture.Resource = desc;
 			req.Destination.Texture.SubresourceIndex = slice;
 			req.Destination.Texture.Region = { 0, 0, 0, mipWidth, mipHeight, 1 };
@@ -948,14 +958,12 @@ namespace rivet_hook {
 			dstorage_context->queue->EnqueueRequest(&req);
 		}
 
-		SetEvent(dstorage_context->updateSignal);
-
 		// this triggers ID3DQueue->Submit, if not present the game will eventually crash the gpu
 		game_dstorage_flush_queue(dstorage_context);
 
 		asset->loaded_lods &= 0xf0;
 		asset->loaded_lods |= levelOfDetail & 0xf;
-		asset->max_lod = levelOfDetail;
+		asset->resourceSize = totalSize;
 
 		return true;
 	}
@@ -1058,10 +1066,6 @@ namespace rivet_hook {
 		create_hook("read file", reinterpret_cast<LPVOID>(archivefs_vtable[ARCHIVEFS_VTABLE_READFILE]), reinterpret_cast<LPVOID>(&read_file), reinterpret_cast<LPVOID *>(&game_read_file));
 		create_hook("close file", reinterpret_cast<LPVOID>(archivefs_vtable[ARCHIVEFS_VTABLE_CLOSEFILE]), reinterpret_cast<LPVOID>(&close_file), reinterpret_cast<LPVOID *>(&game_close_file));
 
-		create_hook("dstoarge init", reinterpret_cast<LPVOID>(0x1416fd4a0), reinterpret_cast<LPVOID>(&dstorage_init), reinterpret_cast<LPVOID *>(&game_dstorage_init));
-		create_hook("nextgen load", reinterpret_cast<LPVOID>(0x14135fcd0), reinterpret_cast<LPVOID>(&nextgen_load_data), reinterpret_cast<LPVOID *>(&game_nextgen_load_data));
-		create_hook("create dstorage context", hook_dstorage_create_context, reinterpret_cast<LPVOID>(&dstorage_create_context), reinterpret_cast<LPVOID *>(&game_dstorage_create_context));
-
 		// NOTE: This bricks DirectStorage, need to find a workaround for "next gen" texture fencing.
 		if (g_settings.force_legacy_textures) {
 			// needed to reset fencing a second time once the game starts.
@@ -1069,6 +1073,10 @@ namespace rivet_hook {
 
 			*legacy_texture_loading = true;
 			*disable_directstorage = true;
+		} else {
+			create_hook("dstorage init", reinterpret_cast<LPVOID>(0x1416fd4a0), reinterpret_cast<LPVOID>(&dstorage_init), reinterpret_cast<LPVOID *>(&game_dstorage_init));
+			create_hook("nextgen load", reinterpret_cast<LPVOID>(0x14135fcd0), reinterpret_cast<LPVOID>(&nextgen_load_data), reinterpret_cast<LPVOID *>(&game_nextgen_load_data));
+			create_hook("create dstorage context", hook_dstorage_create_context, reinterpret_cast<LPVOID>(&dstorage_create_context), reinterpret_cast<LPVOID *>(&game_dstorage_create_context));
 		}
 
 		#undef RVA
