@@ -12,7 +12,7 @@ check out the [rivet repo](https://github.com/neptuwunium/rivet) for research.
 
 ## Installation
 
-- Download `rivet_hook.zip` from the [latest release](https://github.com/neptuwunium/rivet_hook/releases/), and extract.
+- Download `rivet_hook.zip` from the [latest release](https://github.com/neptuwunium/rivet_hook/releases/latest), and extract.
 
 - Copy `hid.dll` to the game installation folder.
 If the game crashes, copy `hid_win10.dll` instead **_and rename it to `hid.dll`._**
