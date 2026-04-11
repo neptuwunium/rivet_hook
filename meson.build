@@ -8,7 +8,8 @@ project('rivet', 'cpp',
 	default_options: [
 		'prefix=/usr',
 		'warning_level=3',
-		'cpp_std=c++20'
+		'cpp_std=c++20',
+        'default_library=shared'
 	],
     meson_version: '>=1.2.1')
 
@@ -53,9 +54,21 @@ dstorage_dep = declare_dependency(
     ]
 )
 
+imgui_dep = subproject('imgui',
+                       default_options: {
+                           'dx12': 'enabled',
+                           'win': 'enabled',
+                       },
+                       required: true).get_variable('imgui_dep') # imgui has no stable api, can't rely on system headers
+
+dxgi_dep = compiler.find_library('dxgi', required: true)
+d3d12_dep = compiler.find_library('d3d12', required: true)
+
 rivet_hook = shared_library('rivet_hook', [
         'src/ddl.cpp',
         'src/main.cpp',
+        'src/overlay.cpp',
+        'src/overlay_core.cpp',
         'src/runtime.cpp',
         'src/runtime_loader.cpp',
         'src/settings.cpp',
@@ -67,6 +80,9 @@ rivet_hook = shared_library('rivet_hook', [
         nlohmann_json_dep,
         toml11_dep,
         dstorage_dep,
+        imgui_dep,
+        dxgi_dep,
+        d3d12_dep
     ],
     name_prefix: '',
     cpp_args: cpp_args

@@ -10,6 +10,7 @@
 #include <thread>
 
 #include "ddl.hpp"
+#include "overlay.hpp"
 #include "runtime.hpp"
 #include "runtime_loader.hpp"
 #include "settings.hpp"
@@ -25,6 +26,8 @@ namespace {
 	HMODULE g_renderdoc = nullptr;
 	bool g_minhook_initialized = false;
 	std::thread g_ddl_dump_thread;
+	std::thread g_overlay_init_thread;
+	std::thread g_overlay_fini_thread;
 } // namespace
 
 namespace rivet_hook {
@@ -98,7 +101,7 @@ namespace rivet_hook {
 	}
 
 	auto
-	create_hook(const std::string &name, LPVOID pointer, LPVOID detour, LPVOID *original) -> void {
+	create_hook(const std::string &name, const LPVOID pointer, const LPVOID detour, LPVOID *original) -> void {
 		if (!g_minhook_initialized) {
 			if (MH_Initialize() != MH_OK) {
 				g_output << "[rivet] failed to initialize minhook\n";
@@ -123,7 +126,7 @@ namespace rivet_hook {
 	}
 
 	auto
-	create_hook(const std::string &name, const HMODULE game, const hex_signature &signature, LPVOID detour, LPVOID *original, const size_t limit, const int select) -> void {
+	create_hook(const std::string &name, const HMODULE game, const hex_signature &signature, const LPVOID detour, LPVOID *original, const size_t limit, const int select) -> void {
 		const auto pointer = find_address(name, game, signature, limit, select);
 		if (pointer == 0) {
 			return;
@@ -186,6 +189,7 @@ namespace rivet_hook {
 	namespace runtime {
 		auto
 		init() -> void {
+			atexit(fini);
 			// this runs on the main thread
 
 			g_output.open("./rivet.log");
@@ -207,6 +211,7 @@ namespace rivet_hook {
 				create_hook("crash handler", crash_handler, reinterpret_cast<LPVOID>(&null_func), nullptr);
 			}
 
+			g_overlay_init_thread = std::thread(Overlay::init);
 			AssetLoader::init();
 
 			if (g_settings.load_renderdoc) {
@@ -266,6 +271,7 @@ namespace rivet_hook {
 				FreeLibrary(g_renderdoc);
 			}
 
+			g_overlay_fini_thread = std::thread(Overlay::fini);
 			AssetLoader::fini();
 
 			if (g_ddl_dump_thread.joinable()) {

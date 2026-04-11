@@ -6,8 +6,10 @@
 #define _CRT_SECURE_NO_WARNINGS // NOLINT(*-reserved-identifier, *-dcl37-c, *-dcl51-cpp)
 #include <windows.h>
 
-#include <cstdio>
 #include <array>
+#include <cstdio>
+#include <fstream>
+#include <ostream>
 
 // this file does 2 things: it sets up the hid.dll trampolines, and it initializes the runtime.
 
@@ -30,7 +32,25 @@ HIDDllMain(const DWORD reason) -> BOOL {
 
 		h_library = LoadLibraryA(hid_path);
 		if (h_library == nullptr) {
-			return 0;
+			const auto err = GetLastError();
+			std::ofstream log;
+			log.open("./rivet.log");
+			log << "[rivet] cannot load rivet_hook.dll: " << std::hex << GetLastError();
+
+			LPVOID lpMsgBuf;
+			if (FormatMessageA(
+				FORMAT_MESSAGE_ALLOCATE_BUFFER |
+				FORMAT_MESSAGE_FROM_SYSTEM |
+				FORMAT_MESSAGE_IGNORE_INSERTS,
+				nullptr,
+				err,
+				MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+				reinterpret_cast<LPTSTR>(&lpMsgBuf),
+				0, nullptr) > 0) {
+				log << " " << lpMsgBuf;
+			}
+			log << "\n";
+			log.flush();
 		}
 
 		proc[0] = GetProcAddress(h_library, "HidD_FlushQueue");
