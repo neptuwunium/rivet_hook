@@ -22,6 +22,7 @@ namespace rivet_hook {
 
 	// util
 	MAKE_SIGNATURE(REL_NXEXCEPTION_VTABLE, "48 8D 05 ?? ?? ?? ?? 48 8B F1 48 89 01 8B FA 48 8B 89")
+	MAKE_SIGNATURE(UNPAUSE_FOCUS, "48 83 EC 28 8B 41 ?? 85 C0 74")
 
 	// note: find signatures for MSMM, MSMR1, MSM2
 	// unhooked asset funcs but called

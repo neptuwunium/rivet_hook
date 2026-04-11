@@ -27,8 +27,6 @@
 #define SAVE_SETTING(group, name, comment) SAVE_SETTING_EX(group, name, #name, comment)
 
 namespace rivet_hook {
-	constexpr auto addr_cache_group = "address_cache";
-
 	auto valid_fingerprint(Settings &settings) -> bool {
 		const auto dos = reinterpret_cast<PIMAGE_DOS_HEADER>(g_game_module);
 
@@ -58,29 +56,30 @@ namespace rivet_hook {
 		try {
 			const auto tbl = toml::parse(settings_name);
 
-			LOAD_SETTING("utility", bool, suppress_crash_handler);
-			LOAD_SETTING("utility", bool, attach_context_log);
-			LOAD_SETTING("utility", bool, attach_log);
+			LOAD_SETTING(utility_group, bool, suppress_crash_handler);
+			LOAD_SETTING(utility_group, bool, attach_context_log);
+			LOAD_SETTING(utility_group, bool, attach_log);
+			LOAD_SETTING(utility_group, bool, unpause_focus);
 
-			LOAD_SETTING("ddl", bool, list_versions);
-			LOAD_SETTING("ddl", bool, dump_ddl);
-			LOAD_SETTING("ddl", bool, debug_ddl);
+			LOAD_SETTING(ddl_group, bool, list_versions);
+			LOAD_SETTING(ddl_group, bool, dump_ddl);
+			LOAD_SETTING(ddl_group, bool, debug_ddl);
 
-			LOAD_SETTING_EX("renderdoc", bool, load_renderdoc, "enabled");
-			LOAD_SETTING_EX("renderdoc", std::string, renderdoc_path, "dll_path");
+			LOAD_SETTING_EX(renderdoc_group, bool, load_renderdoc, "enabled");
+			LOAD_SETTING_EX(renderdoc_group, std::string, renderdoc_path, "dll_path");
 
-			LOAD_SETTING_EX("assets", bool, enable_asset_loader, "enabled");
-			LOAD_SETTING_EX("assets", bool, log_mod_access, "log");
-			LOAD_SETTING_EX("assets", bool, log_mod_state, "verbose");
-			// LOAD_SETTING_EX("assets", bool, force_legacy_textures, "disable_dstorage");
-			LOAD_SETTING_EX("assets", std::vector<std::string>, asset_paths, "paths");
+			LOAD_SETTING_EX(assets_group, bool, enable_asset_loader, "enabled");
+			LOAD_SETTING_EX(assets_group, bool, log_mod_access, "log");
+			LOAD_SETTING_EX(assets_group, bool, log_mod_state, "verbose");
+			// LOAD_SETTING_EX(assets_name, bool, force_legacy_textures, "disable_dstorage");
+			LOAD_SETTING_EX(assets_group, std::vector<std::string>, asset_paths, "paths");
 
-			LOAD_SETTING_EX("log", bool, log_cohtml, "cohtml");
-			LOAD_SETTING_EX("log", bool, log_paths, "paths");
-			LOAD_SETTING_EX("log", bool, log_loose_io, "loose_io");
-			LOAD_SETTING_EX("log", bool, log_asset_opens, "asset_io");
-			LOAD_SETTING_EX("log", bool, log_asset_ids, "id");
-			LOAD_SETTING_EX("log", bool, log_hook_state, "pointers");
+			LOAD_SETTING_EX(log_group, bool, log_cohtml, "cohtml");
+			LOAD_SETTING_EX(log_group, bool, log_paths, "paths");
+			LOAD_SETTING_EX(log_group, bool, log_loose_io, "loose_io");
+			LOAD_SETTING_EX(log_group, bool, log_asset_opens, "asset_io");
+			LOAD_SETTING_EX(log_group, bool, log_asset_ids, "id");
+			LOAD_SETTING_EX(log_group, bool, log_hook_state, "pointers");
 
 			settings.fingerprint = toml::find_or<std::string>(tbl, "__GAME_ID__", settings.fingerprint);
 			if (tbl.contains(addr_cache_group)) {
@@ -114,36 +113,37 @@ namespace rivet_hook {
 	auto
 	Settings::save() const -> void {
 		toml::value tbl = toml::ordered_table();
-		tbl["utility"] = toml::ordered_table();
-		tbl["ddl"] = toml::ordered_table();
-		tbl["renderdoc"] = toml::ordered_table();
-		tbl["assets"] = toml::ordered_table();
-		tbl["log"] = toml::ordered_table();
+		tbl[utility_group] = toml::ordered_table();
+		tbl[ddl_group] = toml::ordered_table();
+		tbl[renderdoc_group] = toml::ordered_table();
+		tbl[assets_group] = toml::ordered_table();
+		tbl[log_group] = toml::ordered_table();
 		tbl[addr_cache_group] = toml::ordered_table();
 
-		SAVE_SETTING("utility", suppress_crash_handler, "disable the exception handler allowing for debuggers to attach without invoking the crash handler");
-		SAVE_SETTING("utility", attach_context_log, "redirect the internal logger context state to rivet.log; disable by default for clutter reasons");
-		SAVE_SETTING("utility", attach_log, "redirect the internal logger to rivet.log; disable by default because the same line is printed frequently");
+		SAVE_SETTING(utility_group, suppress_crash_handler, "disable the exception handler allowing for debuggers to attach without invoking the crash handler");
+		SAVE_SETTING(utility_group, attach_context_log, "redirect the internal logger context state to rivet.log; disable by default for clutter reasons");
+		SAVE_SETTING(utility_group, attach_log, "redirect the internal logger to rivet.log; disable by default because the same line is printed frequently");
+		SAVE_SETTING(utility_group, unpause_focus, "prevent the game from pausing when alt tabbed");
 
-		SAVE_SETTING("ddl", list_versions, "dumps versions to json; disable by default for clutter reasons");
-		SAVE_SETTING("ddl", dump_ddl, "dumps DDL type structures to json; disable by default for clutter reasons");
-		SAVE_SETTING("ddl", debug_ddl, "logs DDL type information; disable by default because log noise");
+		SAVE_SETTING(ddl_group, list_versions, "dumps versions to json; disable by default for clutter reasons");
+		SAVE_SETTING(ddl_group, dump_ddl, "dumps DDL type structures to json; disable by default for clutter reasons");
+		SAVE_SETTING(ddl_group, debug_ddl, "logs DDL type information; disable by default because log noise");
 
-		SAVE_SETTING_EX("renderdoc", load_renderdoc, "enabled", "loads renderdoc.dll into the game; disable by default because it has issues with ReShade");
-		SAVE_SETTING_EX("renderdoc", renderdoc_path, "dll_path", "path to renderdoc/dll");
+		SAVE_SETTING_EX(renderdoc_group, load_renderdoc, "enabled", "loads renderdoc.dll into the game; disable by default because it has issues with ReShade");
+		SAVE_SETTING_EX(renderdoc_group, renderdoc_path, "dll_path", "path to renderdoc/dll");
 
-		SAVE_SETTING_EX("assets", enable_asset_loader, "enabled", "enables loose asset loading");
-		SAVE_SETTING_EX("assets", asset_paths, "paths", "list of paths to load assets from, order is priority. first entry is least priority.");
-		SAVE_SETTING_EX("assets", log_mod_access, "log", "logs when mod files are accessed; disable by default because log noise");
-		SAVE_SETTING_EX("assets", log_mod_state, "verbose", "logs the mod pipeline state; disable by default because log noise");
-		SAVE_SETTING_EX("assets", force_legacy_textures, "disable_dstorage", "force disables directstorage, will have a performance impact. dstorage is currently not supported");
+		SAVE_SETTING_EX(assets_group, enable_asset_loader, "enabled", "enables loose asset loading");
+		SAVE_SETTING_EX(assets_group, asset_paths, "paths", "list of paths to load assets from, order is priority. first entry is least priority.");
+		SAVE_SETTING_EX(assets_group, log_mod_access, "log", "logs when mod files are accessed; disable by default because log noise");
+		SAVE_SETTING_EX(assets_group, log_mod_state, "verbose", "logs the mod pipeline state; disable by default because log noise");
+		SAVE_SETTING_EX(assets_group, force_legacy_textures, "disable_dstorage", "force disables directstorage, will have a performance impact. dstorage is currently not supported");
 
-		SAVE_SETTING_EX("log", log_cohtml, "cohtml", "logs coherent ui url decode requests; disable by default because log noise");
-		SAVE_SETTING_EX("log", log_paths, "paths", "logs asset paths as they are loaded; disable by default because log noise");
-		SAVE_SETTING_EX("log", log_loose_io, "loose_io", "logs loose io; disable by default because log noise");
-		SAVE_SETTING_EX("log", log_asset_opens, "asset_io", "logs asset paths as they are assets; disable by default because log noise");
-		SAVE_SETTING_EX("log", log_asset_ids, "id", "logs asset ids as they are hashed; disable by default because log noise");
-		SAVE_SETTING_EX("log", log_hook_state, "pointers", "logs pointer information; disable by default because log noise");
+		SAVE_SETTING_EX(log_group, log_cohtml, "cohtml", "logs coherent ui url decode requests; disable by default because log noise");
+		SAVE_SETTING_EX(log_group, log_paths, "paths", "logs asset paths as they are loaded; disable by default because log noise");
+		SAVE_SETTING_EX(log_group, log_loose_io, "loose_io", "logs loose io; disable by default because log noise");
+		SAVE_SETTING_EX(log_group, log_asset_opens, "asset_io", "logs asset paths as they are assets; disable by default because log noise");
+		SAVE_SETTING_EX(log_group, log_asset_ids, "id", "logs asset ids as they are hashed; disable by default because log noise");
+		SAVE_SETTING_EX(log_group, log_hook_state, "pointers", "logs pointer information; disable by default because log noise");
 
 		tbl["__GAME_ID__"] = fingerprint;
 		for (auto &[original_key, values] : addresses) {

@@ -244,6 +244,10 @@ namespace rivet_hook {
 				create_hook("log", g_game_module, LOG_SIGNATURE, reinterpret_cast<LPVOID>(&log), nullptr);
 			}
 
+			if (g_settings.unpause_focus) {
+				create_hook("force focus",  g_game_module, UNPAUSE_FOCUS_SIGNATURE, reinterpret_cast<LPVOID>(&return_true), nullptr);
+			}
+
 			if (g_settings.list_versions) {
 				g_output << "[rivet] dumping versions\n";
 				ddl::list_versions();
