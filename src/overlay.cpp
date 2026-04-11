@@ -394,12 +394,12 @@ namespace rivet_hook {
 				case WM_MBUTTONDOWN:
 				case WM_MBUTTONUP:
 				case WM_MOUSEWHEEL:
-				case WM_MOUSEMOVE: return io.WantCaptureMouse ? 0 : CallWindowProc(game_wnd_proc, hWnd, msg, wParam, lParam);
+				case WM_MOUSEMOVE: return imgui_visible && io.WantCaptureMouse ? 0 : CallWindowProc(game_wnd_proc, hWnd, msg, wParam, lParam);
 				case WM_KEYDOWN:
 				case WM_KEYUP:
 				case WM_SYSKEYDOWN:
 				case WM_SYSKEYUP:
-				case WM_CHAR: return io.WantCaptureKeyboard || io.WantTextInput ? 0 : CallWindowProc(game_wnd_proc, hWnd, msg, wParam, lParam);
+				case WM_CHAR: return imgui_visible && (io.WantCaptureKeyboard || io.WantTextInput) ? 0 : CallWindowProc(game_wnd_proc, hWnd, msg, wParam, lParam);
 				default: break;
 			}
 		}
@@ -413,39 +413,26 @@ namespace rivet_hook {
 	UINT WINAPI
 	get_raw_input_data(HRAWINPUT hRawInput, const UINT uiCommand, LPVOID pData, PUINT pcbSize, const UINT cbSizeHeader) {
 		const auto result = game_get_raw_input_data(hRawInput, uiCommand, pData, pcbSize, cbSizeHeader);
-		if (imgui_initialized) {
-			if (result > 0 && pData && uiCommand == RID_INPUT) {
-				if (const auto *raw = static_cast<RAWINPUT *>(pData);
-					raw->header.dwType == RIM_TYPEKEYBOARD &&
+		if (auto *raw = static_cast<RAWINPUT *>(pData); pData && imgui_initialized && raw->header.dwType != RIM_TYPEHID) {
+			if (result > 0) {
+				if (raw->header.dwType == RIM_TYPEKEYBOARD &&
 					raw->data.keyboard.Flags & RI_KEY_BREAK &&
 					raw->data.keyboard.VKey == VK_F3) {
 					imgui_visible = !imgui_visible;
-					*pcbSize = 0;
-					return 0;
+					ShowCursor(imgui_visible);
+					SetCursor(imgui_visible ? LoadCursorA(nullptr, IDC_ARROW) : nullptr);
+					return result;
 				}
 			}
 
-			if (const auto &io = ImGui::GetIO(); io.WantCaptureKeyboard || io.WantCaptureMouse || io.WantTextInput) {
-				*pcbSize = 0;
-				return 0;
+			if (const auto &io = ImGui::GetIO(); imgui_visible && (io.WantCaptureKeyboard || io.WantCaptureMouse || io.WantTextInput)) {
+				const auto old = raw->header;
+				memset(pData, 0, raw->header.dwSize);
+				raw->header = old;
 			}
 		}
 
 		return result;
-	}
-
-	using set_cursor_pos_t = BOOL(WINAPI *)(int X, int Y);
-	set_cursor_pos_t game_set_cursor_pos = nullptr;
-
-	BOOL WINAPI
-	set_cursor_pos(const int X, const int Y) {
-		if (imgui_initialized) {
-			if (const auto &io = ImGui::GetIO(); io.WantCaptureKeyboard || io.WantCaptureMouse || io.WantTextInput) {
-				return false;
-			}
-		}
-
-		return game_set_cursor_pos(X, Y);
 	}
 
 	auto
@@ -456,18 +443,12 @@ namespace rivet_hook {
 		create_window();
 
 		LPVOID *target;
-		// disable input when imgui is focused
+
 		if (MH_CreateHookApiEx(L"user32.dll",
 							   "GetRawInputData",
 							   reinterpret_cast<LPVOID>(&get_raw_input_data),
 							   reinterpret_cast<LPVOID *>(&game_get_raw_input_data),
 							   reinterpret_cast<LPVOID *>(&target)) == MH_OK) {
-			MH_EnableHook(target);
-		}
-
-		// disable mouse manipulation when imgui is focused
-		if (MH_CreateHookApiEx(L"user32.dll", "SetCursorPos", reinterpret_cast<LPVOID>(&set_cursor_pos), reinterpret_cast<LPVOID *>(&game_set_cursor_pos), reinterpret_cast<LPVOID *>(&target)) ==
-			MH_OK) {
 			MH_EnableHook(target);
 		}
 
