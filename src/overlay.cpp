@@ -2,32 +2,34 @@
 //
 // SPDX-License-Identifier: EUPL-1.2
 
-#include <MinHook.h>
-#include <imgui.h>
-#include <imgui_impl_win32.h>
-#include <imgui_impl_dx12.h>
 #include <d3d12.h>
 #include <dxgi1_5.h>
 #include <wrl/client.h>
+
+#include <imgui.h>
+#include <imgui_impl_dx12.h>
+#include <imgui_impl_win32.h>
+
+#include <MinHook.h>
 
 #include "overlay.hpp"
 
 #include "runtime.hpp"
 
-#include <xinput.h>
-
-extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+extern IMGUI_IMPL_API LRESULT
+ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
 namespace rivet_hook {
 	struct DescriptorHeapAllocator {
-		ID3D12DescriptorHeap* Heap = nullptr;
+		ID3D12DescriptorHeap *Heap = nullptr;
 		D3D12_DESCRIPTOR_HEAP_TYPE HeapType = D3D12_DESCRIPTOR_HEAP_TYPE_NUM_TYPES;
 		D3D12_CPU_DESCRIPTOR_HANDLE HeapStartCpu {};
 		D3D12_GPU_DESCRIPTOR_HANDLE HeapStartGpu {};
 		UINT HeapHandleIncrement = 0;
 		ImVector<int> FreeIndices {};
 
-		void Create(ID3D12Device* device, ID3D12DescriptorHeap* heap) {
+		void
+		Create(ID3D12Device *device, ID3D12DescriptorHeap *heap) {
 			IM_ASSERT(Heap == nullptr && FreeIndices.empty());
 			Heap = heap;
 			const auto desc = heap->GetDesc();
@@ -41,12 +43,14 @@ namespace rivet_hook {
 			}
 		}
 
-		void Destroy() {
+		void
+		Destroy() {
 			Heap = nullptr;
 			FreeIndices.clear();
 		}
 
-		void Alloc(D3D12_CPU_DESCRIPTOR_HANDLE* out_cpu_desc_handle, D3D12_GPU_DESCRIPTOR_HANDLE* out_gpu_desc_handle) {
+		void
+		Alloc(D3D12_CPU_DESCRIPTOR_HANDLE *out_cpu_desc_handle, D3D12_GPU_DESCRIPTOR_HANDLE *out_gpu_desc_handle) {
 			IM_ASSERT(FreeIndices.Size > 0);
 			const auto idx = FreeIndices.back();
 			FreeIndices.pop_back();
@@ -54,7 +58,8 @@ namespace rivet_hook {
 			out_gpu_desc_handle->ptr = HeapStartGpu.ptr + idx * HeapHandleIncrement;
 		}
 
-		void Free(const D3D12_CPU_DESCRIPTOR_HANDLE out_cpu_desc_handle, const D3D12_GPU_DESCRIPTOR_HANDLE out_gpu_desc_handle) {
+		void
+		Free(const D3D12_CPU_DESCRIPTOR_HANDLE out_cpu_desc_handle, const D3D12_GPU_DESCRIPTOR_HANDLE out_gpu_desc_handle) {
 			const auto cpu_idx = static_cast<int>((out_cpu_desc_handle.ptr - HeapStartCpu.ptr) / HeapHandleIncrement);
 			const auto gpu_idx = static_cast<int>((out_gpu_desc_handle.ptr - HeapStartGpu.ptr) / HeapHandleIncrement);
 			IM_ASSERT(cpu_idx == gpu_idx);
@@ -63,8 +68,9 @@ namespace rivet_hook {
 	};
 
 	constexpr int MAX_FRAMES_IN_FLIGHT = 4;
+
 	struct FrameContext {
-		ID3D12CommandAllocator* CommandAllocator;
+		ID3D12CommandAllocator *CommandAllocator;
 		UINT64 FenceValue;
 	};
 
@@ -72,29 +78,29 @@ namespace rivet_hook {
 	static UINT g_frameIndex = 0;
 	static int g_frameCount = 0;
 
-	static ID3D12CommandQueue* g_pd3dCommandQueue = nullptr;
-	static ID3D12DescriptorHeap* g_pd3dRtvDescHeap = nullptr;
-	static ID3D12DescriptorHeap* g_pd3dSrvDescHeap = nullptr;
+	static ID3D12CommandQueue *g_pd3dCommandQueue = nullptr;
+	static ID3D12DescriptorHeap *g_pd3dRtvDescHeap = nullptr;
+	static ID3D12DescriptorHeap *g_pd3dSrvDescHeap = nullptr;
 	static DescriptorHeapAllocator g_pd3dSrvDescHeapAlloc;
-	static ID3D12GraphicsCommandList* g_pd3dCommandList = nullptr;
-	static ID3D12Fence* g_fence = nullptr;
+	static ID3D12GraphicsCommandList *g_pd3dCommandList = nullptr;
+	static ID3D12Fence *g_fence = nullptr;
 	static HANDLE g_fenceEvent = nullptr;
 	static UINT64 g_fenceLastSignaledValue = 0;
-	static ID3D12Resource* g_mainRenderTargetResource[MAX_FRAMES_IN_FLIGHT] = {};
+	static ID3D12Resource *g_mainRenderTargetResource[MAX_FRAMES_IN_FLIGHT] = {};
 	static D3D12_CPU_DESCRIPTOR_HANDLE g_mainRenderTargetDescriptor[MAX_FRAMES_IN_FLIGHT] = {};
 
+	LRESULT APIENTRY
+	WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
-	LRESULT APIENTRY WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
-
-	using execute_command_lists_t = void (STDMETHODCALLTYPE *)(ID3D12CommandQueue* pQueue, UINT NumCommandLists, ID3D12CommandList* ppCommandLists);
+	using execute_command_lists_t = void(STDMETHODCALLTYPE *)(ID3D12CommandQueue *pQueue, UINT NumCommandLists, ID3D12CommandList *ppCommandLists);
 	execute_command_lists_t game_execute_command_lists = nullptr;
 	constexpr int32_t D3D12_COMMAND_QUEUE_VTABLE_EXECUTE_COMMAND_LISTS = 10;
 
-	using present_t = HRESULT (STDMETHODCALLTYPE *)(IDXGISwapChain* pSwapChain, UINT SyncInterval, UINT Flags);
+	using present_t = HRESULT(STDMETHODCALLTYPE *)(IDXGISwapChain *pSwapChain, UINT SyncInterval, UINT Flags);
 	present_t game_present = nullptr;
 	constexpr int32_t DXGI_SWAP_CHAIN_VTABLE_PRESENT = 8;
 
-	using resize_buffers_t = HRESULT (STDMETHODCALLTYPE *)(IDXGISwapChain* pSwapChain, UINT BufferCount, UINT Width, UINT Height, DXGI_FORMAT NewFormat, UINT SwapChainFlags);
+	using resize_buffers_t = HRESULT(STDMETHODCALLTYPE *)(IDXGISwapChain *pSwapChain, UINT BufferCount, UINT Width, UINT Height, DXGI_FORMAT NewFormat, UINT SwapChainFlags);
 	resize_buffers_t game_resize_buffers = nullptr;
 	constexpr int32_t DXGI_SWAP_CHAIN_VTABLE_RESIZE_BUFFERS = 13;
 
@@ -138,20 +144,41 @@ namespace rivet_hook {
 
 		g_pd3dSrvDescHeapAlloc.Destroy();
 		for (auto &[command_allocator, _] : g_frameContext) {
-			if (command_allocator) { command_allocator->Release(); command_allocator = nullptr; }
+			if (command_allocator) {
+				command_allocator->Release();
+				command_allocator = nullptr;
+			}
 		}
 		memset(g_frameContext, 0, sizeof(g_frameContext));
 
 		for (auto &resource : g_mainRenderTargetResource) {
-			if (resource) { resource->Release(); resource = nullptr; }
+			if (resource) {
+				resource->Release();
+				resource = nullptr;
+			}
 		}
 		memset(g_mainRenderTargetDescriptor, 0, sizeof(g_mainRenderTargetDescriptor));
 
-		if (g_pd3dCommandList) { g_pd3dCommandList->Release(); g_pd3dCommandList = nullptr; }
-		if (g_pd3dRtvDescHeap) { g_pd3dRtvDescHeap->Release(); g_pd3dRtvDescHeap = nullptr; }
-		if (g_pd3dSrvDescHeap) { g_pd3dSrvDescHeap->Release(); g_pd3dSrvDescHeap = nullptr; }
-		if (g_fence) { g_fence->Release(); g_fence = nullptr; }
-		if (g_fenceEvent) { CloseHandle(g_fenceEvent); g_fenceEvent = nullptr; }
+		if (g_pd3dCommandList) {
+			g_pd3dCommandList->Release();
+			g_pd3dCommandList = nullptr;
+		}
+		if (g_pd3dRtvDescHeap) {
+			g_pd3dRtvDescHeap->Release();
+			g_pd3dRtvDescHeap = nullptr;
+		}
+		if (g_pd3dSrvDescHeap) {
+			g_pd3dSrvDescHeap->Release();
+			g_pd3dSrvDescHeap = nullptr;
+		}
+		if (g_fence) {
+			g_fence->Release();
+			g_fence = nullptr;
+		}
+		if (g_fenceEvent) {
+			CloseHandle(g_fenceEvent);
+			g_fenceEvent = nullptr;
+		}
 		g_fenceLastSignaledValue = 0;
 		g_frameIndex = 0;
 		g_frameCount = 0;
@@ -160,7 +187,7 @@ namespace rivet_hook {
 	}
 
 	auto STDMETHODCALLTYPE
-	execute_command_lists(ID3D12CommandQueue* pQueue, const UINT NumCommandLists, ID3D12CommandList* ppCommandLists) -> void {
+	execute_command_lists(ID3D12CommandQueue *pQueue, const UINT NumCommandLists, ID3D12CommandList *ppCommandLists) -> void {
 		if (!g_pd3dCommandQueue && pQueue->GetDesc().Type == D3D12_COMMAND_LIST_TYPE_DIRECT) {
 			g_pd3dCommandQueue = pQueue;
 		}
@@ -169,14 +196,14 @@ namespace rivet_hook {
 	}
 
 	auto STDMETHODCALLTYPE
-	resize_buffers(IDXGISwapChain3* pSwapChain, const UINT BufferCount, const UINT Width, const UINT Height, const DXGI_FORMAT NewFormat, const UINT SwapChainFlags) -> HRESULT {
+	resize_buffers(IDXGISwapChain3 *pSwapChain, const UINT BufferCount, const UINT Width, const UINT Height, const DXGI_FORMAT NewFormat, const UINT SwapChainFlags) -> HRESULT {
 		reset();
 		return game_resize_buffers(pSwapChain, BufferCount, Width, Height, NewFormat, SwapChainFlags);
 	}
 
 	auto
-	init_imgui(IDXGISwapChain3* pSwapChain) -> bool {
-		ID3D12Device* pd3dDevice;
+	init_imgui(IDXGISwapChain3 *pSwapChain) -> bool {
+		ID3D12Device *pd3dDevice;
 
 		if (pSwapChain->GetDevice(IID_PPV_ARGS(&pd3dDevice)) != S_OK) {
 			return false;
@@ -237,7 +264,7 @@ namespace rivet_hook {
 		if (pd3dDevice->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, g_frameContext[0].CommandAllocator, nullptr, IID_PPV_ARGS(&g_pd3dCommandList)) != S_OK ||
 			g_pd3dCommandList->Close() != S_OK) {
 			return false;
-			}
+		}
 
 		if (pd3dDevice->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&g_fence)) != S_OK) {
 			return false;
@@ -250,7 +277,7 @@ namespace rivet_hook {
 
 		IMGUI_CHECKVERSION();
 		ImGui::CreateContext();
-		ImGuiIO& io = ImGui::GetIO();
+		ImGuiIO &io = ImGui::GetIO();
 		io.IniFilename = nullptr;
 		ImGui::StyleColorsDark();
 
@@ -263,18 +290,21 @@ namespace rivet_hook {
 		init_info.RTVFormat = desc.BufferDesc.Format;
 		init_info.DSVFormat = DXGI_FORMAT_UNKNOWN;
 		init_info.SrvDescriptorHeap = g_pd3dSrvDescHeap;
-		init_info.SrvDescriptorAllocFn = [](ImGui_ImplDX12_InitInfo*, D3D12_CPU_DESCRIPTOR_HANDLE* out_cpu_handle, D3D12_GPU_DESCRIPTOR_HANDLE* out_gpu_handle) { return g_pd3dSrvDescHeapAlloc.Alloc(out_cpu_handle, out_gpu_handle); };
-		init_info.SrvDescriptorFreeFn = [](ImGui_ImplDX12_InitInfo*, const D3D12_CPU_DESCRIPTOR_HANDLE cpu_handle, const D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle)            { return g_pd3dSrvDescHeapAlloc.Free(cpu_handle, gpu_handle); };
+		init_info.SrvDescriptorAllocFn = [](ImGui_ImplDX12_InitInfo *, D3D12_CPU_DESCRIPTOR_HANDLE *out_cpu_handle, D3D12_GPU_DESCRIPTOR_HANDLE *out_gpu_handle) {
+			return g_pd3dSrvDescHeapAlloc.Alloc(out_cpu_handle, out_gpu_handle);
+		};
+		init_info.SrvDescriptorFreeFn = [](ImGui_ImplDX12_InitInfo *, const D3D12_CPU_DESCRIPTOR_HANDLE cpu_handle, const D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle) {
+			return g_pd3dSrvDescHeapAlloc.Free(cpu_handle, gpu_handle);
+		};
 
 		ImGui_ImplDX12_Init(&init_info);
 
 		return true;
 	}
 
-
-	FrameContext* WaitForNextFrameContext()
-	{
-		FrameContext* frame_context = &g_frameContext[g_frameIndex % g_frameCount];
+	FrameContext *
+	WaitForNextFrameContext() {
+		FrameContext *frame_context = &g_frameContext[g_frameIndex % g_frameCount];
 		if (g_fence && g_fence->GetCompletedValue() < frame_context->FenceValue) {
 			if (g_fence->SetEventOnCompletion(frame_context->FenceValue, g_fenceEvent) == S_OK) {
 				WaitForSingleObject(g_fenceEvent, INFINITE);
@@ -285,7 +315,7 @@ namespace rivet_hook {
 	}
 
 	auto STDMETHODCALLTYPE
-	present(IDXGISwapChain3* pSwapChain, const UINT SyncInterval, const UINT flags) -> HRESULT {
+	present(IDXGISwapChain3 *pSwapChain, const UINT SyncInterval, const UINT flags) -> HRESULT {
 		if (g_pd3dCommandQueue == nullptr || bricked) {
 			return game_present(pSwapChain, SyncInterval, flags);
 		}
@@ -306,20 +336,19 @@ namespace rivet_hook {
 		Overlay::draw_imgui();
 		ImGui::Render();
 
-
-		FrameContext* frameCtx = WaitForNextFrameContext();
+		FrameContext *frameCtx = WaitForNextFrameContext();
 		const UINT backBufferIdx = pSwapChain->GetCurrentBackBufferIndex();
 		if (frameCtx->CommandAllocator->Reset() != S_OK) {
 			return game_present(pSwapChain, SyncInterval, flags);
 		}
 
 		D3D12_RESOURCE_BARRIER barrier = {};
-		barrier.Type                   = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-		barrier.Flags                  = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-		barrier.Transition.pResource   = g_mainRenderTargetResource[backBufferIdx];
+		barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+		barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+		barrier.Transition.pResource = g_mainRenderTargetResource[backBufferIdx];
 		barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
 		barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;
-		barrier.Transition.StateAfter  = D3D12_RESOURCE_STATE_RENDER_TARGET;
+		barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
 		if (g_pd3dCommandList->Reset(frameCtx->CommandAllocator, nullptr) != S_OK) {
 			return game_present(pSwapChain, SyncInterval, flags);
 		}
@@ -328,7 +357,7 @@ namespace rivet_hook {
 		g_pd3dCommandList->SetDescriptorHeaps(1, &g_pd3dSrvDescHeap);
 		ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), g_pd3dCommandList);
 		barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
-		barrier.Transition.StateAfter  = D3D12_RESOURCE_STATE_PRESENT;
+		barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
 		g_pd3dCommandList->ResourceBarrier(1, &barrier);
 		if (g_pd3dCommandList->Close() != S_OK) {
 			return game_present(pSwapChain, SyncInterval, flags);
@@ -344,9 +373,10 @@ namespace rivet_hook {
 		return game_present(pSwapChain, SyncInterval, flags);
 	}
 
-	LRESULT APIENTRY WndProc(HWND hWnd, const UINT msg, const WPARAM wParam, const LPARAM lParam) {
+	LRESULT APIENTRY
+	WndProc(HWND hWnd, const UINT msg, const WPARAM wParam, const LPARAM lParam) {
 		if (imgui_initialized) {
-			const auto& io = ImGui::GetIO();
+			const auto &io = ImGui::GetIO();
 			switch (msg) {
 				case WM_LBUTTONDBLCLK:
 				case WM_LBUTTONDOWN:
@@ -358,44 +388,43 @@ namespace rivet_hook {
 				case WM_MBUTTONDOWN:
 				case WM_MBUTTONUP:
 				case WM_MOUSEWHEEL:
-				case WM_MOUSEMOVE:
-					ImGui_ImplWin32_WndProcHandler(hWnd, msg, wParam, lParam);
-					return io.WantCaptureMouse ? 0 : CallWindowProc(game_wnd_proc, hWnd, msg, wParam, lParam);
+				case WM_MOUSEMOVE: ImGui_ImplWin32_WndProcHandler(hWnd, msg, wParam, lParam); return io.WantCaptureMouse ? 0 : CallWindowProc(game_wnd_proc, hWnd, msg, wParam, lParam);
 				case WM_KEYDOWN:
 				case WM_KEYUP:
 				case WM_CHAR:
 					ImGui_ImplWin32_WndProcHandler(hWnd, msg, wParam, lParam);
 					return io.WantCaptureKeyboard || io.WantTextInput ? 0 : CallWindowProc(game_wnd_proc, hWnd, msg, wParam, lParam);
-				default:
-					break;
+				default: break;
 			}
 		}
 
 		return CallWindowProc(game_wnd_proc, hWnd, msg, wParam, lParam);
 	}
 
-	using get_raw_input_data_t = UINT (WINAPI*)(HRAWINPUT hRawInput,UINT uiCommand,LPVOID pData,PUINT pcbSize,UINT cbSizeHeader);
+	using get_raw_input_data_t = UINT(WINAPI *)(HRAWINPUT hRawInput, UINT uiCommand, LPVOID pData, PUINT pcbSize, UINT cbSizeHeader);
 	get_raw_input_data_t game_get_raw_input_data = nullptr;
-	UINT WINAPI get_raw_input_data(HRAWINPUT hRawInput, const UINT uiCommand, LPVOID pData, PUINT pcbSize, const UINT cbSizeHeader) {
+
+	UINT WINAPI
+	get_raw_input_data(HRAWINPUT hRawInput, const UINT uiCommand, LPVOID pData, PUINT pcbSize, const UINT cbSizeHeader) {
 		if (imgui_initialized) {
-			if (const auto &io = ImGui::GetIO();
-				io.WantCaptureKeyboard || io.WantCaptureMouse || io.WantTextInput) {
+			if (const auto &io = ImGui::GetIO(); io.WantCaptureKeyboard || io.WantCaptureMouse || io.WantTextInput) {
 				*pcbSize = 0;
 				return 0;
-				}
+			}
 		}
 
 		return game_get_raw_input_data(hRawInput, uiCommand, pData, pcbSize, cbSizeHeader);
 	}
 
-	using set_cursor_pos_t = BOOL (WINAPI*)(int X, int Y);
+	using set_cursor_pos_t = BOOL(WINAPI *)(int X, int Y);
 	set_cursor_pos_t game_set_cursor_pos = nullptr;
-	BOOL WINAPI set_cursor_pos(const int X, const int Y) {
+
+	BOOL WINAPI
+	set_cursor_pos(const int X, const int Y) {
 		if (imgui_initialized) {
-			if (const auto &io = ImGui::GetIO();
-				io.WantCaptureKeyboard || io.WantCaptureMouse || io.WantTextInput) {
+			if (const auto &io = ImGui::GetIO(); io.WantCaptureKeyboard || io.WantCaptureMouse || io.WantTextInput) {
 				return false;
-				}
+			}
 		}
 
 		return game_set_cursor_pos(X, Y);
@@ -408,24 +437,29 @@ namespace rivet_hook {
 
 		create_window();
 
-		LPVOID* target;
+		LPVOID *target;
 		// disable input when imgui is focused
-		if (MH_CreateHookApiEx(L"user32.dll", "GetRawInputData", reinterpret_cast<LPVOID>(&get_raw_input_data), reinterpret_cast<LPVOID*>(&game_get_raw_input_data), reinterpret_cast<LPVOID*>(&target)) == MH_OK) {
+		if (MH_CreateHookApiEx(L"user32.dll",
+							   "GetRawInputData",
+							   reinterpret_cast<LPVOID>(&get_raw_input_data),
+							   reinterpret_cast<LPVOID *>(&game_get_raw_input_data),
+							   reinterpret_cast<LPVOID *>(&target)) == MH_OK) {
 			MH_EnableHook(target);
 		}
 
 		// disable mouse manipulation when imgui is focused
-		if (MH_CreateHookApiEx(L"user32.dll", "SetCursorPos", reinterpret_cast<LPVOID>(&set_cursor_pos), reinterpret_cast<LPVOID*>(&game_set_cursor_pos), reinterpret_cast<LPVOID*>(&target)) == MH_OK) {
+		if (MH_CreateHookApiEx(L"user32.dll", "SetCursorPos", reinterpret_cast<LPVOID>(&set_cursor_pos), reinterpret_cast<LPVOID *>(&game_set_cursor_pos), reinterpret_cast<LPVOID *>(&target)) ==
+			MH_OK) {
 			MH_EnableHook(target);
 		}
 
 		using namespace Microsoft::WRL;
 
-		#define CLEANUP(msg) \
-		g_output << "[overlay] " msg "\n"; \
-		g_output.flush(); \
-		destroy_window(); \
-		return
+#define CLEANUP(msg)                   \
+	g_output << "[overlay] " msg "\n"; \
+	g_output.flush();                  \
+	destroy_window();                  \
+	return
 
 		ComPtr<IDXGIFactory> dxgi_factory;
 		if (FAILED(CreateDXGIFactory(IID_PPV_ARGS(&dxgi_factory)))) {
@@ -475,14 +509,19 @@ namespace rivet_hook {
 			CLEANUP("cannot create dxgi swap chain");
 		}
 
-		g_output << "[overlay] overwriting D3D12CommandQueue vtable...\n"; g_output.flush();
-		auto** d3d12_command_queue_vtable = *reinterpret_cast<LPVOID ***>(d3d12_command_queue.Get());
-		create_hook("D3D12 ExecuteCommandLists", d3d12_command_queue_vtable[D3D12_COMMAND_QUEUE_VTABLE_EXECUTE_COMMAND_LISTS], reinterpret_cast<LPVOID>(&execute_command_lists), reinterpret_cast<LPVOID*>(&game_execute_command_lists));
+		g_output << "[overlay] overwriting D3D12CommandQueue vtable...\n";
+		g_output.flush();
+		auto **d3d12_command_queue_vtable = *reinterpret_cast<LPVOID ***>(d3d12_command_queue.Get());
+		create_hook("D3D12 ExecuteCommandLists",
+					d3d12_command_queue_vtable[D3D12_COMMAND_QUEUE_VTABLE_EXECUTE_COMMAND_LISTS],
+					reinterpret_cast<LPVOID>(&execute_command_lists),
+					reinterpret_cast<LPVOID *>(&game_execute_command_lists));
 
-		g_output << "[overlay] overwriting DXGISwapChain vtable...\n"; g_output.flush();
-		auto** dxgi_swap_chain_vtable = *reinterpret_cast<LPVOID ***>(dxgi_swap_chain.Get());
-		create_hook("DXGI Present", dxgi_swap_chain_vtable[DXGI_SWAP_CHAIN_VTABLE_PRESENT], reinterpret_cast<LPVOID>(&present), reinterpret_cast<LPVOID*>(&game_present));
-		create_hook("DXGI ResizeBuffers", dxgi_swap_chain_vtable[DXGI_SWAP_CHAIN_VTABLE_RESIZE_BUFFERS], reinterpret_cast<LPVOID>(&resize_buffers), reinterpret_cast<LPVOID*>(&game_resize_buffers));
+		g_output << "[overlay] overwriting DXGISwapChain vtable...\n";
+		g_output.flush();
+		auto **dxgi_swap_chain_vtable = *reinterpret_cast<LPVOID ***>(dxgi_swap_chain.Get());
+		create_hook("DXGI Present", dxgi_swap_chain_vtable[DXGI_SWAP_CHAIN_VTABLE_PRESENT], reinterpret_cast<LPVOID>(&present), reinterpret_cast<LPVOID *>(&game_present));
+		create_hook("DXGI ResizeBuffers", dxgi_swap_chain_vtable[DXGI_SWAP_CHAIN_VTABLE_RESIZE_BUFFERS], reinterpret_cast<LPVOID>(&resize_buffers), reinterpret_cast<LPVOID *>(&game_resize_buffers));
 
 		CLEANUP("finished");
 	}
@@ -495,4 +534,4 @@ namespace rivet_hook {
 
 		reset();
 	}
-} // rivet_hook
+} // namespace rivet_hook
