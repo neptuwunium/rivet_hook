@@ -111,6 +111,7 @@ namespace rivet_hook {
 
 	bool bricked = false;
 	bool imgui_initialized = false;
+	bool imgui_visible = false;
 
 	auto
 	create_window() -> bool {
@@ -303,8 +304,8 @@ namespace rivet_hook {
 	}
 
 	FrameContext *
-	WaitForNextFrameContext() {
-		FrameContext *frame_context = &g_frameContext[g_frameIndex % g_frameCount];
+	WaitForNextFrameContext(const UINT index) {
+		FrameContext *frame_context = &g_frameContext[index % g_frameCount];
 		if (g_fence && g_fence->GetCompletedValue() < frame_context->FenceValue) {
 			if (g_fence->SetEventOnCompletion(frame_context->FenceValue, g_fenceEvent) == S_OK) {
 				WaitForSingleObject(g_fenceEvent, INFINITE);
@@ -330,14 +331,18 @@ namespace rivet_hook {
 			imgui_initialized = true;
 		}
 
+		if (!imgui_visible) {
+			return game_present(pSwapChain, SyncInterval, flags);
+		}
+
 		ImGui_ImplDX12_NewFrame();
 		ImGui_ImplWin32_NewFrame();
 		ImGui::NewFrame();
 		Overlay::draw_imgui();
 		ImGui::Render();
 
-		FrameContext *frameCtx = WaitForNextFrameContext();
 		const UINT backBufferIdx = pSwapChain->GetCurrentBackBufferIndex();
+		FrameContext *frameCtx = WaitForNextFrameContext(backBufferIdx);
 		if (frameCtx->CommandAllocator->Reset() != S_OK) {
 			return game_present(pSwapChain, SyncInterval, flags);
 		}
@@ -377,6 +382,7 @@ namespace rivet_hook {
 	WndProc(HWND hWnd, const UINT msg, const WPARAM wParam, const LPARAM lParam) {
 		if (imgui_initialized) {
 			const auto &io = ImGui::GetIO();
+			ImGui_ImplWin32_WndProcHandler(hWnd, msg, wParam, lParam);
 			switch (msg) {
 				case WM_LBUTTONDBLCLK:
 				case WM_LBUTTONDOWN:
@@ -388,12 +394,12 @@ namespace rivet_hook {
 				case WM_MBUTTONDOWN:
 				case WM_MBUTTONUP:
 				case WM_MOUSEWHEEL:
-				case WM_MOUSEMOVE: ImGui_ImplWin32_WndProcHandler(hWnd, msg, wParam, lParam); return io.WantCaptureMouse ? 0 : CallWindowProc(game_wnd_proc, hWnd, msg, wParam, lParam);
+				case WM_MOUSEMOVE: return io.WantCaptureMouse ? 0 : CallWindowProc(game_wnd_proc, hWnd, msg, wParam, lParam);
 				case WM_KEYDOWN:
 				case WM_KEYUP:
-				case WM_CHAR:
-					ImGui_ImplWin32_WndProcHandler(hWnd, msg, wParam, lParam);
-					return io.WantCaptureKeyboard || io.WantTextInput ? 0 : CallWindowProc(game_wnd_proc, hWnd, msg, wParam, lParam);
+				case WM_SYSKEYDOWN:
+				case WM_SYSKEYUP:
+				case WM_CHAR: return io.WantCaptureKeyboard || io.WantTextInput ? 0 : CallWindowProc(game_wnd_proc, hWnd, msg, wParam, lParam);
 				default: break;
 			}
 		}
@@ -406,14 +412,26 @@ namespace rivet_hook {
 
 	UINT WINAPI
 	get_raw_input_data(HRAWINPUT hRawInput, const UINT uiCommand, LPVOID pData, PUINT pcbSize, const UINT cbSizeHeader) {
+		const auto result = game_get_raw_input_data(hRawInput, uiCommand, pData, pcbSize, cbSizeHeader);
 		if (imgui_initialized) {
+			if (result > 0 && pData && uiCommand == RID_INPUT) {
+				if (const auto *raw = static_cast<RAWINPUT *>(pData);
+					raw->header.dwType == RIM_TYPEKEYBOARD &&
+					raw->data.keyboard.Flags & RI_KEY_BREAK &&
+					raw->data.keyboard.VKey == VK_F3) {
+					imgui_visible = !imgui_visible;
+					*pcbSize = 0;
+					return 0;
+				}
+			}
+
 			if (const auto &io = ImGui::GetIO(); io.WantCaptureKeyboard || io.WantCaptureMouse || io.WantTextInput) {
 				*pcbSize = 0;
 				return 0;
 			}
 		}
 
-		return game_get_raw_input_data(hRawInput, uiCommand, pData, pcbSize, cbSizeHeader);
+		return result;
 	}
 
 	using set_cursor_pos_t = BOOL(WINAPI *)(int X, int Y);
