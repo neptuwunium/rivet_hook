@@ -46,13 +46,10 @@ if not compiler.check_header('toml.hpp')
     toml11_dep = dependency('toml11', version: '>= 4.4.0')
 endif
 
-dstorage_path = meson.current_source_dir() + '/dstorage'
-dstorage_dep = declare_dependency(
-    include_directories: include_directories('dstorage/include'),
-    dependencies: [
-        compiler.find_library('dstorage', dirs: dstorage_path + '/lib', required: true)
-    ]
-)
+directx = subproject('directx')
+dstorage_dep = directx.get_variable('dstorage_dep')
+dxgi_dep = directx.get_variable('dxgi_dep')
+d3d12_dep = directx.get_variable('d3d12_dep')
 
 imgui_dep = subproject('imgui',
                        default_options: {
@@ -63,6 +60,8 @@ imgui_dep = subproject('imgui',
 
 dxgi_dep = compiler.find_library('dxgi', required: true)
 d3d12_dep = compiler.find_library('d3d12', required: true)
+
+subproject('rivet_hid')
 
 rivet_hook = shared_library('rivet_hook', [
         'src/ddl.cpp',

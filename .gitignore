@@ -40,8 +40,6 @@
 cmake-build-*
 /cmake
 /build
-build
-buildHID
 vcs.xml
 
 /tmp
@@ -51,7 +49,8 @@ vcs.xml
 .vscode
 
 subprojects/*
-!subprojects/GDeflate
+!subprojects/directx
+!subprojects/rivet_hid
 !subprojects/packagefiles
 !subprojects/*.wrap
 .clangd

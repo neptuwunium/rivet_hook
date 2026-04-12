@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: EUPL-1.2
 
-project('rivet', 'cpp',
+project('rivet_hid', 'cpp',
 	license: 'EUPL-1.2',
 	version: '1.0.0',
 	default_options: [

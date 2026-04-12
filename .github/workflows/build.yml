@@ -26,29 +26,23 @@ jobs:
       - name: Setup MSBuild
         uses: microsoft/setup-msbuild@v2
 
-      - name: Configure HID
-        run: meson setup build/hid hid --buildtype release --debug --backend vs2022
-
-      - name: Compile HID
-        run: meson compile -C build/hid -j 0
-
       - name: Configure Hook
-        run: meson setup build/hook . --buildtype release --debug --backend vs2022
+        run: meson setup build . --buildtype release --debug --backend vs2022
 
       - name: Compile Hook
-        run: meson compile -C build/hook -j 0
+        run: meson compile -C build -j 0
 
       - name: Move Files
         run: |
-          mkdir -p build/release
-          mv build/hid/hid_win10.dll build/release/
-          mv build/hid/hid.dll build/release/
-          mv build/hook/rivet_hook.dll build/release/
-          mv build/hid/hid_win10.pdb build/release/
-          mv build/hid/hid.pdb build/release/
-          mv build/hook/rivet_hook.pdb build/release/
+          mkdir -p build/rivet_hook
+          mv build/rivet_hook.dll build/rivet_hook/
+          mv build/rivet_hook.pdb build/rivet_hook/
+          mv build/subprojects/rivet_hid/hid.dll build/rivet_hook/
+          mv build/subprojects/rivet_hid/hid.pdb build/rivet_hook/
+          mv build/subprojects/rivet_hid/hid_win10.dll build/rivet_hook/
+          mv build/subprojects/rivet_hid/hid_win10.pdb build/rivet_hook/
 
       - uses: actions/upload-artifact@v4
         with:
-          name: 'release'
-          path: 'build/release'
+          name: 'rivet_hook'
+          path: 'build/rivet_hook'
