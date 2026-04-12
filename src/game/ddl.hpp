@@ -99,4 +99,4 @@ namespace rivet_hook::game::ddl {
 	};
 
 #pragma pack(pop)
-}
+} // namespace rivet_hook::game::ddl

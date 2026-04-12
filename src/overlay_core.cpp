@@ -6,10 +6,10 @@
 
 #include <imgui.h>
 
-#include "overlay.hpp"
-#include "runtime.hpp"
 #include "game/hero_manager.hpp"
 #include "game/scene_manager.hpp"
+#include "overlay.hpp"
+#include "runtime.hpp"
 
 namespace rivet_hook {
 	std::thread g_overlay_init_thread;
@@ -37,4 +37,4 @@ namespace rivet_hook {
 	Overlay::draw_imgui() -> void {
 		ImGui::ShowDemoWindow();
 	}
-}
+} // namespace rivet_hook

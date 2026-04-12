@@ -13,6 +13,7 @@ namespace rivet_hook::game::actor {
 		uint32_t id : 20;
 		uint32_t type : 12;
 	};
+
 	static_assert(sizeof(ActorHandleMetadata) == 4, "ActorHandleMetadata size is not 4");
 
 	struct ActorHandle {
@@ -21,7 +22,8 @@ namespace rivet_hook::game::actor {
 			uint32_t value;
 		};
 	};
+
 	static_assert(sizeof(ActorHandle) == 4, "ActorHandle size is not 4");
 
 #pragma pack(pop)
-}
+} // namespace rivet_hook::game::actor

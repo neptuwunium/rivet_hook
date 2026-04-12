@@ -10,8 +10,8 @@
 
 #include <toml.hpp>
 
-#include "settings.hpp"
 #include "runtime.hpp"
+#include "settings.hpp"
 
 #define LOAD_SETTING_EX(group, type, name, var_name)                                 \
 	if (tbl.contains(group) && tbl.at(group).is_table()) {                           \
@@ -27,7 +27,8 @@
 #define SAVE_SETTING(group, name, comment) SAVE_SETTING_EX(group, name, #name, comment)
 
 namespace rivet_hook {
-	auto valid_fingerprint(Settings &settings) -> bool {
+	auto
+	valid_fingerprint(Settings &settings) -> bool {
 		const auto dos = reinterpret_cast<PIMAGE_DOS_HEADER>(g_game_module);
 
 		if (dos->e_magic != IMAGE_DOS_SIGNATURE) {
