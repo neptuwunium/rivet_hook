@@ -174,7 +174,6 @@ namespace rivet_hook::ddl {
 		const auto tl_pointer = find_address("ddl type list", g_game_module, DDL_TYPE_LIST_SIGNATURE);
 
 		if (hm_pointer == 0 || tl_pointer == 0) {
-			g_output.flush();
 			return;
 		}
 
@@ -365,7 +364,6 @@ namespace rivet_hook::ddl {
 		g_output << "[DDL] found " << bitsets.size() << " bitsets\n";
 		g_output << "[DDL] found " << roots.size() << " roots\n";
 		g_output << "[DDL] found " << types.size() << " types\n";
-		g_output.flush();
 	}
 
 	auto
@@ -379,7 +377,6 @@ namespace rivet_hook::ddl {
 		auto hash_function_ptr = find_address("version hash function", g_game_module, VERSION_HASH_SIGNATURE);
 
 		if (function_ptr == 0 || hash_function_ptr == 0) {
-			g_output.flush();
 			return;
 		}
 
@@ -388,6 +385,7 @@ namespace rivet_hook::ddl {
 			return;
 		}
 
+		g_output << "[version] dumping...\n";
 		auto func1 = reinterpret_cast<version_str_t>(function_ptr);
 		auto func2 = reinterpret_cast<version_hash_t>(hash_function_ptr);
 
@@ -395,7 +393,7 @@ namespace rivet_hook::ddl {
 		nlohmann::json versions = nlohmann::json::array_t();
 		while (true) {
 			auto version_str = func1(index++);
-			if (reinterpret_cast<int64_t>(version_str) == -1) {
+			if (static_cast<int32_t>(reinterpret_cast<intptr_t>(version_str)) == -1) {
 				break;
 			}
 
@@ -416,7 +414,6 @@ namespace rivet_hook::ddl {
 		json_data.write(json_text.c_str(), static_cast<std::streamsize>(json_text.size()));
 		json_data.flush();
 		json_data.close();
-		g_output.flush();
 	}
 
 	auto
@@ -432,7 +429,6 @@ namespace rivet_hook::ddl {
 		auto component_count = load_rel_var(find_address("component count", g_game_module, COMPONENT_REGISTER_SIGNATURE), COMPONENT_COUNT_ADDRESS);
 
 		if (component_registry == nullptr || component_count == nullptr) {
-			g_output.flush();
 			return;
 		}
 
@@ -463,8 +459,8 @@ namespace rivet_hook::ddl {
 			component["unknown3"] = component_info.unknown3;
 			component["index_a"] = component_info.index_a;
 			component["index_b"] = component_info.index_b;
-			component["base_count"] = component_info.base_count;
-			auto bases = component["base"] = nlohmann::json::array_t();
+			component["unknown4"] = component_info.unknown4;
+			auto bases = nlohmann::json::array_t();
 
 			for (int j = 0; j < 9; ++j) {
 				if (component_info.base_components[j] == 0) {
@@ -478,6 +474,10 @@ namespace rivet_hook::ddl {
 				bases.emplace_back(base_json);
 			}
 
+			if (!bases.empty()) {
+				component["base"] = bases;
+			}
+
 			components.emplace_back(component);
 		}
 
@@ -487,7 +487,6 @@ namespace rivet_hook::ddl {
 		json_data.write(json_text.c_str(), static_cast<std::streamsize>(json_text.size()));
 		json_data.flush();
 		json_data.close();
-		g_output.flush();
 	}
 
 	auto
@@ -506,5 +505,7 @@ namespace rivet_hook::ddl {
 		if (g_settings.dump_components) {
 			dump_components();
 		}
+
+		g_output.flush();
 	}
 } // namespace rivet_hook::ddl

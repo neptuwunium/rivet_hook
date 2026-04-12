@@ -122,14 +122,14 @@ namespace rivet_hook::game {
 		void* unknown2;
 		int32_t size;
 		uint32_t id;
-		intptr_t base_components[9];
+		intptr_t base_components[9]; // cleared by component manager
 		DDLTypeInfo* prius;
 		ddl_call_t *create;
 		int32_t unknown3;
 		uint16_t index_a;
 		uint16_t index_b;
 		uint16_t flags;
-		uint8_t base_count;
+		uint8_t unknown4;
 		uint8_t flags2;
 	};
 
