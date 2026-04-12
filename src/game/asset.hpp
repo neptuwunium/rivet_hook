@@ -105,7 +105,8 @@ namespace rivet_hook::game {
 		AssetStatus status;
 		uint8_t unknown1;
 		AssetManagerType type;
-		uint8_t unknown2[3];
+		uint8_t unknown2;
+		uint16_t refCount;
 		AssetLanguage language;
 		uint8_t unknown3;
 		AssetId assetId;
@@ -117,6 +118,7 @@ namespace rivet_hook::game {
 	};
 
 	size_assert(Asset, 0x30);
+	offset_assert(Asset, refCount, 0x4);
 	offset_assert(Asset, assetId, 0x8);
 	offset_assert(Asset, name, 0x10);
 	offset_assert(Asset, nameOffset, 0x18);

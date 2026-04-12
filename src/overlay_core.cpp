@@ -47,14 +47,6 @@ namespace rivet_hook {
 	bool loading = false;
 
 	auto
-	spawn_bot_internal() -> void {
-		if (testAsset) {
-			spawn_bot(0, testAsset);
-		}
-		loading = false;
-	}
-
-	auto
 	Overlay::draw_imgui() -> void {
 		ImGui::Begin("Rivet");
 
@@ -67,8 +59,12 @@ namespace rivet_hook {
 			ImGui::BeginDisabled(testAsset->status != AssetStatus::Loaded || loading);
 			if (ImGui::Button("Scarier Button")) {
 				loading = true;
-				auto thread = std::thread(spawn_bot_internal);
-				thread.detach();
+				std::thread([]{
+					if (testAsset) {
+						spawn_bot(0, testAsset);
+					}
+					loading = false;
+				}).detach();
 			}
 			ImGui::EndDisabled();
 		}
