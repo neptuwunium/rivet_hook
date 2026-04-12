@@ -1,0 +1,9 @@
+[wrap-file]
+directory = imgui-1.92.7
+source_url = https://github.com/ocornut/imgui/archive/refs/tags/v1.92.7.tar.gz
+source_filename = imgui-1.92.7.tar.gz
+source_hash = b21b14ce1ef6dd4d85fa54f68f8449a9be94f3b453aba7fe4ea2a9764e43a5ef
+patch_directory = imgui
+
+[provide]
+dependency_names = imgui

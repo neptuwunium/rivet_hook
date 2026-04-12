@@ -10,8 +10,8 @@
 
 #include <toml.hpp>
 
-#include "settings.hpp"
 #include "runtime.hpp"
+#include "settings.hpp"
 
 #define LOAD_SETTING_EX(group, type, name, var_name)                                 \
 	if (tbl.contains(group) && tbl.at(group).is_table()) {                           \
@@ -27,7 +27,8 @@
 #define SAVE_SETTING(group, name, comment) SAVE_SETTING_EX(group, name, #name, comment)
 
 namespace rivet_hook {
-	auto valid_fingerprint(Settings &settings) -> bool {
+	auto
+	valid_fingerprint(Settings &settings) -> bool {
 		const auto dos = reinterpret_cast<PIMAGE_DOS_HEADER>(g_game_module);
 
 		if (dos->e_magic != IMAGE_DOS_SIGNATURE) {
@@ -60,6 +61,7 @@ namespace rivet_hook {
 			LOAD_SETTING(utility_group, bool, attach_context_log);
 			LOAD_SETTING(utility_group, bool, attach_log);
 			LOAD_SETTING(utility_group, bool, unpause_focus);
+			LOAD_SETTING(utility_group, bool, enable_overlay);
 
 			LOAD_SETTING(ddl_group, bool, list_versions);
 			LOAD_SETTING(ddl_group, bool, dump_ddl);
@@ -124,6 +126,7 @@ namespace rivet_hook {
 		SAVE_SETTING(utility_group, attach_context_log, "redirect the internal logger context state to rivet.log; disable by default for clutter reasons");
 		SAVE_SETTING(utility_group, attach_log, "redirect the internal logger to rivet.log; disable by default because the same line is printed frequently");
 		SAVE_SETTING(utility_group, unpause_focus, "prevent the game from pausing when alt tabbed");
+		SAVE_SETTING(utility_group, enable_overlay, "enable imgui overlay for various in game stuffs");
 
 		SAVE_SETTING(ddl_group, list_versions, "dumps versions to json; disable by default for clutter reasons");
 		SAVE_SETTING(ddl_group, dump_ddl, "dumps DDL type structures to json; disable by default for clutter reasons");

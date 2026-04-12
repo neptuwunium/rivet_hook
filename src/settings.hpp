@@ -17,6 +17,7 @@ namespace rivet_hook {
 		bool attach_context_log = false;
 		bool attach_log = false;
 		bool unpause_focus = false;
+		bool enable_overlay = true;
 
 		static constexpr auto ddl_group = "ddl";
 		bool list_versions = false;

@@ -13,7 +13,7 @@
 
 #include <nlohmann/json.hpp>
 
-using namespace rivet_hook;
+using namespace rivet_hook::game::ddl;
 
 namespace rivet_hook::ddl {
 	auto

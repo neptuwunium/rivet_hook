@@ -45,17 +45,25 @@ if not compiler.check_header('toml.hpp')
     toml11_dep = dependency('toml11', version: '>= 4.4.0')
 endif
 
-dstorage_path = meson.current_source_dir() + '/dstorage'
-dstorage_dep = declare_dependency(
-    include_directories: include_directories('dstorage/include'),
-    dependencies: [
-        compiler.find_library('dstorage', dirs: dstorage_path + '/lib', required: true)
-    ]
-)
+imgui_dep = subproject('imgui',
+   default_options: {
+       'dx12': 'enabled',
+       'win': 'enabled',
+       'disable_obsolete_functions': true,
+   },
+   required: true).get_variable('imgui_dep') # imgui has no stable api, can't rely on system headers
+
+dstorage_dep = subproject('directstorage').get_variable('directstorage_dep')
+dxgi_dep = compiler.find_library('dxgi', required: true)
+d3d12_dep = compiler.find_library('d3d12', required: true)
+
+subproject('rivet_hid')
 
 rivet_hook = shared_library('rivet_hook', [
         'src/ddl.cpp',
         'src/main.cpp',
+        'src/overlay.cpp',
+        'src/overlay_core.cpp',
         'src/runtime.cpp',
         'src/runtime_loader.cpp',
         'src/settings.cpp',
@@ -67,6 +75,9 @@ rivet_hook = shared_library('rivet_hook', [
         nlohmann_json_dep,
         toml11_dep,
         dstorage_dep,
+        imgui_dep,
+        dxgi_dep,
+        d3d12_dep
     ],
     name_prefix: '',
     cpp_args: cpp_args

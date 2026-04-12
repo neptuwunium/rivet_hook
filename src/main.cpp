@@ -11,8 +11,6 @@ auto APIENTRY
 DllMain(HMODULE, const DWORD reason, LPVOID) -> BOOL {
 	if (reason == DLL_PROCESS_ATTACH) {
 		rivet_hook::runtime::init();
-	} else if (reason == DLL_PROCESS_DETACH) {
-		rivet_hook::runtime::fini();
 	}
 
 	return TRUE;

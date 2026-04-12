@@ -12,19 +12,20 @@
 #include <dstorage.h>
 #include <initguid.h>
 
+#include "game/asset_pipeline.hpp"
 #include "runtime.hpp"
-#include "asset_pipeline.hpp"
 #include "runtime_loader.hpp"
 #include "settings.hpp"
 #include "signature.hpp"
-
-#include "MinHook.h"
 
 DEFINE_GUID(IID_IDStorageQueue1, 0xdd2f482c, 0x5eff, 0x41e8, 0x9c, 0x9e, 0xd2, 0x37, 0x4b, 0x27, 0x81, 0x28);
 DEFINE_GUID(IID_IDStorageFactory, 0x6924ea0c, 0xc3cd, 0x4826, 0xb1, 0x0a, 0xf6, 0x4f, 0x4e, 0xd9, 0x27, 0xc1);
 
 namespace rivet_hook {
 	constexpr int64_t RIVET_SENTINEL = 0x7fffffff'ffffff00;
+
+	using namespace game::asset;
+	using namespace game::asset_pipeline;
 
 	struct MemoryFile {
 		const uint8_t *buffer = nullptr;
@@ -503,7 +504,7 @@ namespace rivet_hook {
 					g_output.flush();
 				}
 
-				return asset_id;
+				return static_cast<int64_t>(asset_id & INT64_MAX);
 			}
 		}
 
