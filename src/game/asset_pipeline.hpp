@@ -11,10 +11,12 @@
 
 #include <cstdint>
 
-namespace rivet_hook {
+#include "asset.hpp"
+
+namespace rivet_hook::game::asset_pipeline {
 	constexpr static auto decode_url_string_name = "?DecodeURLString@Library@cohtml@@SAXPEBDIPEADPEAI@Z";
 
-	using AssetId = uint64_t;
+	using namespace rivet_hook::game::asset;
 
 #pragma pack(push, 1)
 	enum class AssetType : uint32_t {
@@ -180,10 +182,7 @@ namespace rivet_hook {
 	static_assert(sizeof(MipDataRange) == 0x10, "MipDataRange size mismatch");
 
 	struct TextureAsset {
-		void** vtable;
-		uint64_t asset_id;
-		const char* name;
-		uint16_t nameOffset;
+		Asset base;
 		uint8_t unknown1[0x22];
 		uint32_t max_lod;
 		ID3D12Resource* resource;
@@ -191,7 +190,7 @@ namespace rivet_hook {
 		uint8_t loaded_lods;
 	};
 
-	static_assert(offsetof(TextureAsset, asset_id) == 0x8, "TextureAsset asset_id offset mismatch");
+	static_assert(offsetof(TextureAsset, base.assetId) == 0x8, "TextureAsset base.assetId offset mismatch");
 	static_assert(offsetof(TextureAsset, max_lod) == 0x3c, "TextureAsset max_lod offset mismatch");
 	static_assert(offsetof(TextureAsset, resource) == 0x40, "TextureAsset resource offset mismatch");
 	static_assert(offsetof(TextureAsset, loaded_lods) == 0xc5, "TextureAsset loaded_lods offset mismatch");

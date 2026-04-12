@@ -10,7 +10,13 @@ namespace rivet_hook {
 		init() -> void;
 
 		static auto
+		d3d12_init() -> void;
+
+		static auto
 		fini() -> void;
+
+		static auto
+		d3d12_fini() -> void;
 
 		static auto
 		draw_imgui() -> void;

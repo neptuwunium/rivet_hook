@@ -436,7 +436,7 @@ namespace rivet_hook {
 	}
 
 	auto
-	Overlay::init() -> void {
+	Overlay::d3d12_init() -> void {
 		g_output << "[overlay] loading dxgi and d3d12...\n";
 		g_output.flush();
 
@@ -526,7 +526,7 @@ namespace rivet_hook {
 	}
 
 	auto
-	Overlay::fini() -> void {
+	Overlay::d3d12_fini() -> void {
 		if (window_handle && game_wnd_proc) {
 			SetWindowLongPtr(window_handle, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(game_wnd_proc));
 		}

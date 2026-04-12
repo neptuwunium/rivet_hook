@@ -26,8 +26,6 @@ namespace {
 	HMODULE g_renderdoc = nullptr;
 	bool g_minhook_initialized = false;
 	std::thread g_ddl_dump_thread;
-	std::thread g_overlay_init_thread;
-	std::thread g_overlay_fini_thread;
 } // namespace
 
 namespace rivet_hook {
@@ -211,7 +209,7 @@ namespace rivet_hook {
 				create_hook("crash handler", crash_handler, reinterpret_cast<LPVOID>(&null_func), nullptr);
 			}
 
-			g_overlay_init_thread = std::thread(Overlay::init);
+			Overlay::init();
 			AssetLoader::init();
 
 			if (g_settings.load_renderdoc) {
@@ -271,7 +269,7 @@ namespace rivet_hook {
 				FreeLibrary(g_renderdoc);
 			}
 
-			g_overlay_fini_thread = std::thread(Overlay::fini);
+			Overlay::fini();
 			AssetLoader::fini();
 
 			if (g_ddl_dump_thread.joinable()) {
