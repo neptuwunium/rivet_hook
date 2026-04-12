@@ -24,8 +24,7 @@ DEFINE_GUID(IID_IDStorageFactory, 0x6924ea0c, 0xc3cd, 0x4826, 0xb1, 0x0a, 0xf6, 
 namespace rivet_hook {
 	constexpr int64_t RIVET_SENTINEL = 0x7fffffff'ffffff00;
 
-	using namespace game::asset;
-	using namespace game::asset_pipeline;
+	using namespace game;
 
 	struct MemoryFile {
 		const uint8_t *buffer = nullptr;

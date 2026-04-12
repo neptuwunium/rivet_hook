@@ -7,11 +7,11 @@
 #include <array>
 #include <cstdint>
 
-namespace rivet_hook::game::ddl {
+namespace rivet_hook::game {
 #pragma pack(push, 1)
 	using ddl_call_t = void *(void *);
 
-	struct ddl_type_info {
+	struct DDLTypeInfo {
 		const char *name;
 		uint32_t type_id;
 		uint32_t function_id;
@@ -44,7 +44,7 @@ namespace rivet_hook::game::ddl {
 		ddl_call_t *hash_test_ptr;		// compares hashes?
 	};
 
-	struct ddl_type_info_ex_type_12 {
+	struct DDLBitSetTypeInfo {
 		uint32_t count;
 		uint32_t unknown1;
 		intptr_t unknown2;
@@ -65,37 +65,72 @@ namespace rivet_hook::game::ddl {
 		const char **labels;
 	};
 
-	struct ddl_type_info_ex_type_11 {
+	struct DDLSelectTypeInfo {
 		const ddl_type_ex_select_info *select_info;
 	};
 
-	struct ddl_type_descriptor;
+	struct DDLTypeDescriptor;
 
-	struct ddl_type_descriptor {
+	struct DDLTypeDescriptor {
 		intptr_t **vtable;
 		const char *name;
 		uint32_t type_id;
 		uint32_t index;
-		const ddl_type_descriptor **parent;
+		const DDLTypeDescriptor **parent;
 	};
 
-	struct ddl_hash_map {
+	struct DDLHashMap {
 		intptr_t *buckets;
-		const ddl_type_info **values;
+		const DDLTypeInfo **values;
 		uint32_t count;
 		uint32_t capacity;
 	};
 
-	struct ddl_runtime_str {
+	struct DDLRuntimeString {
 		const char *value;
 		int32_t length;
 		uint32_t hash;
 	};
 
-	struct ddl_runtime_file {
+	struct DDLRuntimeFile {
 		const char *value;
 		int32_t length;
 		uint64_t asset_id;
+	};
+
+	struct ComponentPriusInfo {
+		ddl_call_t *init;
+		ddl_call_t *json;
+		ddl_call_t *copy;
+		ddl_call_t *create;
+		ddl_call_t *destroy;
+		int64_t size;
+	};
+
+	constexpr int COMPONENT_BASE_CLASS_IS_NEXT_ENTRY = 1;
+
+	struct ComponentInfo {
+		ddl_call_t *update_early;
+		ddl_call_t *update_early2;
+		ddl_call_t *update;
+		ddl_call_t *update_late;
+		ddl_call_t *update_thread;
+		ddl_call_t *update_thread2;
+		ComponentPriusInfo prius_info;
+		const char* name;
+		void* unknown1;
+		void* unknown2;
+		int32_t size;
+		uint32_t id;
+		intptr_t base_components[9]; // cleared by component manager
+		DDLTypeInfo* prius;
+		ddl_call_t *create;
+		int32_t unknown3;
+		uint16_t index_a;
+		uint16_t index_b;
+		uint16_t flags;
+		uint8_t unknown4;
+		uint8_t flags2;
 	};
 
 #pragma pack(pop)

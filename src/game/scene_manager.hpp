@@ -8,7 +8,7 @@
 
 #include "actor.hpp"
 
-namespace rivet_hook::game::system {
+namespace rivet_hook::game {
 #pragma pack(push, 1)
 
 #pragma pack(pop)
