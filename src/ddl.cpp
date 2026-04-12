@@ -13,11 +13,11 @@
 
 #include <nlohmann/json.hpp>
 
-using namespace rivet_hook::game::ddl;
+using namespace rivet_hook::game;
 
 namespace rivet_hook::ddl {
 	auto
-	get_ddl_field(nlohmann::json &field, const uint8_t *object, uint32_t offset, uint8_t array_type, uint8_t field_type, int32_t index, const ddl_type_info *const type_ptr, const int32_t type_index)
+	get_ddl_field(nlohmann::json &field, const uint8_t *object, uint32_t offset, uint8_t array_type, uint8_t field_type, int32_t index, const DDLTypeInfo *const type_ptr, const int32_t type_index)
 		-> void {
 		if (array_type == 0) {
 			switch (field_type) {
@@ -38,7 +38,7 @@ namespace rivet_hook::ddl {
 				case 20: field["default"] = reinterpret_cast<const uint64_t *>(object + offset)[index]; return; // instance
 				case 10:
 					{ // str
-						if (auto str = reinterpret_cast<const ddl_runtime_str *>(object + offset)[index]; str.value != nullptr) {
+						if (auto str = reinterpret_cast<const DDLRuntimeString *>(object + offset)[index]; str.value != nullptr) {
 							nlohmann::json str_default;
 							str_default["value"] = str.value;
 							str_default["id"] = str.hash;
@@ -50,7 +50,7 @@ namespace rivet_hook::ddl {
 					}
 				case 16:
 					{ // file
-						if (auto str = reinterpret_cast<const ddl_runtime_file *>(object + offset)[index]; str.value != nullptr) {
+						if (auto str = reinterpret_cast<const DDLRuntimeFile *>(object + offset)[index]; str.value != nullptr) {
 							nlohmann::json str_default;
 							str_default["value"] = str.value;
 							str_default["id"] = str.asset_id;
@@ -178,14 +178,15 @@ namespace rivet_hook::ddl {
 			return;
 		}
 
-		g_output << "[DDL] sleeping by 5 seconds to give the game a chance to set up...\n";
-
-		std::this_thread::sleep_for(5000ms);
+		if (WaitForSingleObject(g_game_inited, INFINITE) == WAIT_FAILED) {
+			g_output << "[DDL] wait failed??\n";
+			return;
+		}
 
 		g_output << "[DDL] dumping...\n";
 
-		const auto *type_hash_map = static_cast<const ddl_hash_map *>(load_rel_var(hm_pointer, DDL_HASH_MAP_ADDRESS));
-		const auto **type_list = static_cast<const ddl_type_descriptor **>(load_rel_var(tl_pointer, DDL_TYPE_LIST_ADDRESS));
+		const auto *type_hash_map = static_cast<const DDLHashMap *>(load_rel_var(hm_pointer, DDL_HASH_MAP_ADDRESS));
+		const auto **type_list = static_cast<const DDLTypeDescriptor **>(load_rel_var(tl_pointer, DDL_TYPE_LIST_ADDRESS));
 		const auto type_count = *static_cast<const uint32_t *>(load_rel_var(tl_pointer, DDL_TYPE_LIST_COUNT_ADDRESS));
 
 		std::unordered_set<uint32_t> enum_ids;
@@ -203,6 +204,7 @@ namespace rivet_hook::ddl {
 			}
 
 			nlohmann::json root_type;
+			g_output << "[ddl] processing " << std::hex << type_ptr->name << " " << type_ptr->type_id << "\n";
 			root_type["name"] = type_ptr->name;
 			root_type["id"] = type_ptr->type_id;
 			if (type_ptr->parent != nullptr) {
@@ -276,7 +278,7 @@ namespace rivet_hook::ddl {
 					auto field_type = type_ptr->field_types[fi];
 					auto type_id = type_ptr->field_type_ids[fi];
 					if (field_type == 13) {
-						const auto *ex_13 = static_cast<const ddl_type_info *>(extra);
+						const auto *ex_13 = static_cast<const DDLTypeInfo *>(extra);
 						nlohmann::json struct_type;
 						struct_type["name"] = ex_13->name;
 						struct_type["id"] = ex_13->type_id;
@@ -284,7 +286,7 @@ namespace rivet_hook::ddl {
 					} else if (field_type == 12) {
 						if (!bitset_ids.contains(type_id)) {
 							bitset_ids.emplace(type_id);
-							const auto *ex_12 = static_cast<const ddl_type_info_ex_type_12 *>(extra);
+							const auto *ex_12 = static_cast<const DDLBitSetTypeInfo *>(extra);
 							nlohmann::json bitset;
 							bitset["id"] = type_id;
 							nlohmann::json::array_t bitset_values;
@@ -300,7 +302,7 @@ namespace rivet_hook::ddl {
 							bitsets.push_back(bitset);
 						}
 					} else if (field_type == 11) {
-						const auto *ex_11 = static_cast<const ddl_type_info_ex_type_11 *>(extra);
+						const auto *ex_11 = static_cast<const DDLSelectTypeInfo *>(extra);
 						field["enum_type_id"] = ex_11->select_info->type_id;
 						if (!enum_ids.contains(ex_11->select_info->type_id)) {
 							enum_ids.emplace(ex_11->select_info->type_id);
@@ -367,7 +369,7 @@ namespace rivet_hook::ddl {
 	}
 
 	auto
-	list_versions() -> void {
+	dump_versions() -> void {
 		g_output << "[rivet] dumping versions\n";
 		using namespace std::chrono_literals;
 		using version_str_t = const char *(*) (uint32_t index);
@@ -378,6 +380,11 @@ namespace rivet_hook::ddl {
 
 		if (function_ptr == 0 || hash_function_ptr == 0) {
 			g_output.flush();
+			return;
+		}
+
+		if (WaitForSingleObject(g_game_inited, INFINITE) == WAIT_FAILED) {
+			g_output << "[version] wait failed??\n";
 			return;
 		}
 
@@ -410,5 +417,94 @@ namespace rivet_hook::ddl {
 		json_data.flush();
 		json_data.close();
 		g_output.flush();
+	}
+
+	auto
+	dump_components() -> void {
+		g_output << "[rivet] dumping components\n";
+
+		if (WaitForSingleObject(g_game_inited, INFINITE) == WAIT_FAILED) {
+			g_output << "[component] wait failed??\n";
+			return;
+		}
+
+		auto component_registry = load_rel_var(find_address("component registry", g_game_module, COMPONENT_REGISTER_SIGNATURE), COMPONENT_REGISTRY_ADDRESS);
+		auto component_count = load_rel_var(find_address("component count", g_game_module, COMPONENT_REGISTER_SIGNATURE), COMPONENT_COUNT_ADDRESS);
+
+		if (component_registry == nullptr || component_count == nullptr) {
+			g_output.flush();
+			return;
+		}
+
+		const auto component_infos = *static_cast<ComponentInfo***>(component_registry);
+		const auto count = *static_cast<int32_t*>(component_count);
+
+		nlohmann::json components = nlohmann::json::array_t();
+		for (int i = 0; i < count; i++) {
+			const auto component_info_p = component_infos[i];
+			if (!component_info_p) {
+				continue;
+			}
+
+			const auto component_info = *component_info_p;
+			nlohmann::json component;
+			g_output << "[component] processing " << std::hex << component_info.name << " " << component_info.id << "\n";
+			component["id"] = component_info.id;
+			component["name"] = component_info.name ? component_info.name : "";
+			component["prius_size"] = component_info.prius_info.size;
+			if (component_info.prius) {
+				auto prius_json = nlohmann::json::array_t();
+				prius_json.emplace_back(component_info.prius->name ? component_info.prius->name : "");
+				prius_json.emplace_back(component_info.prius->type_id);
+				component["prius"] = prius_json;
+			}
+			component["flags"] = component_info.flags;
+			component["flags2"] = component_info.flags2;
+			component["unknown3"] = component_info.unknown3;
+			component["index_a"] = component_info.index_a;
+			component["index_b"] = component_info.index_b;
+			component["base_count"] = component_info.base_count;
+			auto bases = component["base"] = nlohmann::json::array_t();
+
+			for (int j = 0; j < 9; ++j) {
+				if (component_info.base_components[j] == 0) {
+					continue;
+				}
+
+				auto base = *reinterpret_cast<ComponentInfo*>(component_info.base_components[j]);
+				auto base_json = nlohmann::json::array_t();
+				base_json.emplace_back(base.name ? base.name : "");
+				base_json.emplace_back(base.id);
+				bases.emplace_back(base_json);
+			}
+
+			components.emplace_back(component);
+		}
+
+		std::ofstream json_data;
+		json_data.open("./components.json");
+		auto json_text = components.dump();
+		json_data.write(json_text.c_str(), static_cast<std::streamsize>(json_text.size()));
+		json_data.flush();
+		json_data.close();
+		g_output.flush();
+	}
+
+	auto
+	dump() -> void {
+		if (g_settings.dump_ddl) {
+			if (g_settings.debug_ddl) {
+				std::filesystem::create_directory("./ddl");
+			}
+			dump_ddl();
+		}
+
+		if (g_settings.dump_versions) {
+			dump_versions();
+		}
+
+		if (g_settings.dump_components) {
+			dump_components();
+		}
 	}
 } // namespace rivet_hook::ddl

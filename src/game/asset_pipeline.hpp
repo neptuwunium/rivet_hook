@@ -13,10 +13,8 @@
 
 #include "asset.hpp"
 
-namespace rivet_hook::game::asset_pipeline {
+namespace rivet_hook::game {
 	constexpr static auto decode_url_string_name = "?DecodeURLString@Library@cohtml@@SAXPEBDIPEADPEAI@Z";
-
-	using namespace rivet_hook::game::asset;
 
 #pragma pack(push, 1)
 	enum class AssetType : uint32_t {

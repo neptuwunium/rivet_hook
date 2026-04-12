@@ -18,6 +18,7 @@ namespace rivet_hook {
 	extern std::ofstream g_output;
 	extern Settings g_settings;
 	extern HMODULE g_game_module;
+	extern HANDLE g_game_inited;
 
 	constexpr std::string_view RIVET_VERSION = "1.0.1";
 

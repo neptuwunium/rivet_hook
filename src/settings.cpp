@@ -63,7 +63,8 @@ namespace rivet_hook {
 			LOAD_SETTING(utility_group, bool, unpause_focus);
 			LOAD_SETTING(utility_group, bool, enable_overlay);
 
-			LOAD_SETTING(ddl_group, bool, list_versions);
+			LOAD_SETTING(ddl_group, bool, dump_versions);
+			LOAD_SETTING(ddl_group, bool, dump_components);
 			LOAD_SETTING(ddl_group, bool, dump_ddl);
 			LOAD_SETTING(ddl_group, bool, debug_ddl);
 
@@ -128,7 +129,8 @@ namespace rivet_hook {
 		SAVE_SETTING(utility_group, unpause_focus, "prevent the game from pausing when alt tabbed");
 		SAVE_SETTING(utility_group, enable_overlay, "enable imgui overlay for various in game stuffs");
 
-		SAVE_SETTING(ddl_group, list_versions, "dumps versions to json; disable by default for clutter reasons");
+		SAVE_SETTING(ddl_group, dump_versions, "dumps versions to json; disable by default for clutter reasons");
+		SAVE_SETTING(ddl_group, dump_components, "dumps components to json; disable by default for clutter reasons");
 		SAVE_SETTING(ddl_group, dump_ddl, "dumps DDL type structures to json; disable by default for clutter reasons");
 		SAVE_SETTING(ddl_group, debug_ddl, "logs DDL type information; disable by default because log noise");
 

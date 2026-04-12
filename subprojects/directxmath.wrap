@@ -1,0 +1,10 @@
+[wrap-file]
+directory = DirectXMath-2024.10.15.1
+lead_directory_missing = true
+source_url = https://www.nuget.org/api/v2/package/directxmath/2024.10.15.1
+source_filename = directxmath.2024.10.15.1.zip
+source_hash = 4612e2a99222ffb9669f93cb8271b61428638d4147a1b1a25d7162bafe7ca1f4
+patch_directory = directxmath
+
+[provide]
+directxmath = directxmath_dep

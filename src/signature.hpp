@@ -14,6 +14,8 @@ namespace rivet_hook {
 	MAKE_SIGNATURE(DDL_TYPE_LIST, "48 8d ?? ?? ?? ?? ?? 66 89 41 14 8b ?? ?? ?? ?? ?? 48 89 ?? ?? ff c0 89 ?? ?? ?? ?? ?? c3")
 	MAKE_SIGNATURE(VERSION, "48 0F BE C1 48 8D 0D ?? ?? ?? ?? 48 8B 04 C1 C3 8B")
 	MAKE_SIGNATURE(VERSION_HASH, "48 0F BE C1 48 8D 0D ?? ?? ?? ?? 8B 04 81 C3")
+	MAKE_SIGNATURE(COMPONENT_REGISTER, "48 89 81 ?? ?? ?? ?? FF 05")
+	MAKE_SIGNATURE(ENGINE_INIT, "48 83 EC 28 E8 ?? ?? ?? ?? 84 C0 75 ?? 48 83 C4 28")
 
 	// logging
 	MAKE_SIGNATURE(CONTEXT_LOG, "65 48 8b 04 25 58 00 00 00 48 85 c9 44 8b 05")
@@ -55,6 +57,8 @@ namespace rivet_hook {
 	constexpr uint32_t DDL_HASH_MAP_ADDRESS = 0x6;
 	constexpr uint32_t DDL_TYPE_LIST_ADDRESS = 0x3;
 	constexpr uint32_t DDL_TYPE_LIST_COUNT_ADDRESS = 0xD;
+	constexpr uint32_t COMPONENT_COUNT_ADDRESS = 0x9;
+	constexpr uint32_t COMPONENT_REGISTRY_ADDRESS = 0x10;
 
 	constexpr uint32_t NXEXCEPTION_VTABLE_ADDRESS = 0x3;
 	constexpr uint32_t NXEXCEPTION_VTABLE_INIT = 0x1;
@@ -74,6 +78,4 @@ namespace rivet_hook {
 
 	constexpr uint32_t REL_SET_TEXT_LANGUAGE_ADDRESS = 0x1;
 	constexpr uint32_t REL_SET_AUDIO_LANGUAGE_ADDRESS = 0xC;
-
-	constexpr uint32_t DSTORAGEQUEUE_VTABLE_ENQUEUE_REQUEST = 0x3;
 } // namespace rivet_hook

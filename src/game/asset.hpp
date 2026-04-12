@@ -6,7 +6,7 @@
 
 #include <cstdint>
 
-namespace rivet_hook::game::asset {
+namespace rivet_hook::game {
 	using AssetId = uint64_t;
 
 #pragma pack(push, 1)

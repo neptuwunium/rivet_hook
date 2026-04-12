@@ -27,7 +27,8 @@ cpp_args = compiler.get_supported_arguments(
     '-Wno-unknown-pragmas',
     '-Wall',
     '-Wextra',
-    '-pedantic',
+    '-Wno-pedantic',
+    '-Wno-unused-but-set-variable',
     '-Wno-unused-variable',
     '-Wno-unused-parameter',
     '-Wno-deprecated-literal-operator',
@@ -56,6 +57,7 @@ imgui_dep = subproject('imgui',
 dstorage_dep = subproject('directstorage').get_variable('directstorage_dep')
 dxgi_dep = compiler.find_library('dxgi', required: true)
 d3d12_dep = compiler.find_library('d3d12', required: true)
+directxmath_dep = dependency('directxmath', version: '>= 2024.10.15.1')
 
 subproject('rivet_hid')
 
@@ -77,7 +79,8 @@ rivet_hook = shared_library('rivet_hook', [
         dstorage_dep,
         imgui_dep,
         dxgi_dep,
-        d3d12_dep
+        d3d12_dep,
+        directxmath_dep
     ],
     name_prefix: '',
     cpp_args: cpp_args

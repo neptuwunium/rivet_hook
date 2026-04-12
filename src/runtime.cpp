@@ -8,6 +8,7 @@
 #include <memory>
 #include <ostream>
 #include <thread>
+#include <filesystem>
 
 #include "ddl.hpp"
 #include "overlay.hpp"
@@ -32,11 +33,14 @@ namespace rivet_hook {
 	std::ofstream g_output;
 	Settings g_settings;
 	HMODULE g_game_module = nullptr;
+	HANDLE g_game_inited = nullptr;
 
 #pragma clang diagnostic push
 #pragma ide diagnostic ignored "cppcoreguidelines-pro-bounds-pointer-arithmetic"
 	using context_log_t = const char *(*) (const char *, const char *);
-	context_log_t fwd_context_log = nullptr;
+	using game_init_t = bool (*)(void* self);
+	game_init_t game_engine_init = nullptr;
+	context_log_t game_context_log = nullptr;
 	std::string last_context;
 	std::string last_message;
 
@@ -149,7 +153,7 @@ namespace rivet_hook {
 	auto
 	context_log(const char *context, const char *message) -> const char * {
 		const auto valid = context != nullptr && context[0] != 0 && context[0] != '?' && message != nullptr && message[0] != 0 && message[0] != '?';
-		const auto *result = fwd_context_log(context, message);
+		const auto *result = game_context_log(context, message);
 		if (valid) {
 			const auto current_context = std::string(context);
 
@@ -182,6 +186,13 @@ namespace rivet_hook {
 		return nullptr;
 	}
 
+	auto
+	engine_init(void* self) -> bool {
+		const auto result = game_engine_init(self);
+		SetEvent(g_game_inited);
+		return result;
+	}
+
 #pragma clang diagnostic pop
 
 	namespace runtime {
@@ -194,6 +205,10 @@ namespace rivet_hook {
 			g_output << "[rivet] init\n";
 			g_output << "[rivet] version " << RIVET_VERSION << "\n";
 
+			if (!g_game_inited) {
+				g_game_inited = CreateEvent(nullptr, true, false, nullptr);
+			}
+
 			if (!GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_PIN, nullptr, &g_game_module)) {
 				g_output << "[rivet] unable to get the executable handle.\n";
 				return;
@@ -201,6 +216,8 @@ namespace rivet_hook {
 
 			g_settings = Settings::load();
 			g_settings.save();
+
+			create_hook("engine init", g_game_module, ENGINE_INIT_SIGNATURE, reinterpret_cast<LPVOID>(&engine_init), reinterpret_cast<LPVOID*>(&game_engine_init));
 
 			if (g_settings.suppress_crash_handler) {
 				const auto nxe_vtable = load_rel_var(find_address("nxexception", g_game_module, REL_NXEXCEPTION_VTABLE_SIGNATURE), NXEXCEPTION_VTABLE_ADDRESS);
@@ -211,6 +228,8 @@ namespace rivet_hook {
 
 			Overlay::init();
 			AssetLoader::init();
+			g_output << "[rivet] starting ddl thread\n";
+			g_ddl_dump_thread = std::thread(ddl::dump);
 
 			if (g_settings.load_renderdoc) {
 				g_output << "[rivet] loading renderdoc\n";
@@ -231,16 +250,8 @@ namespace rivet_hook {
 				}
 			}
 
-			if (g_settings.dump_ddl) {
-				if (g_settings.debug_ddl) {
-					std::filesystem::create_directory("./ddl");
-				}
-				g_output << "[rivet] starting ddl dump thread\n";
-				g_ddl_dump_thread = std::thread(ddl::dump_ddl);
-			}
-
 			if (g_settings.attach_context_log) {
-				create_hook("context log", g_game_module, CONTEXT_LOG_SIGNATURE, reinterpret_cast<LPVOID>(&context_log), reinterpret_cast<LPVOID *>(&fwd_context_log));
+				create_hook("context log", g_game_module, CONTEXT_LOG_SIGNATURE, reinterpret_cast<LPVOID>(&context_log), reinterpret_cast<LPVOID *>(&game_context_log));
 			}
 
 			if (g_settings.attach_log) {
@@ -249,11 +260,6 @@ namespace rivet_hook {
 
 			if (g_settings.unpause_focus) {
 				create_hook("force focus",  g_game_module, UNPAUSE_FOCUS_SIGNATURE, reinterpret_cast<LPVOID>(&return_true), nullptr);
-			}
-
-			if (g_settings.list_versions) {
-				g_output << "[rivet] dumping versions\n";
-				ddl::list_versions();
 			}
 
 			g_output << "[rivet] init complete\n";

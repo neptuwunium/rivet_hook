@@ -20,8 +20,9 @@ namespace rivet_hook {
 		bool enable_overlay = true;
 
 		static constexpr auto ddl_group = "ddl";
-		bool list_versions = false;
+		bool dump_versions = false;
 		bool dump_ddl = false;
+		bool dump_components = false;
 		bool debug_ddl = false;
 
 		static constexpr auto renderdoc_group = "renderdoc";
