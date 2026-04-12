@@ -7,6 +7,7 @@
 #include <imgui.h>
 
 #include "overlay.hpp"
+#include "runtime.hpp"
 #include "game/hero_manager.hpp"
 #include "game/scene_manager.hpp"
 
@@ -16,11 +17,19 @@ namespace rivet_hook {
 
 	auto
 	Overlay::init() -> void {
+		if (!g_settings.enable_overlay) {
+			return;
+		}
+
 		g_overlay_init_thread = std::thread(d3d12_init);
 	}
 
 	auto
 	Overlay::fini() -> void {
+		if (!g_settings.enable_overlay) {
+			return;
+		}
+
 		g_overlay_fini_thread = std::thread(d3d12_fini);
 	}
 
