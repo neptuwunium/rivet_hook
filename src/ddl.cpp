@@ -432,6 +432,7 @@ namespace rivet_hook::ddl {
 			g_output << "[component] processing " << std::hex << component_info.name << " " << component_info.id << "\n";
 			component["id"] = component_info.id;
 			component["name"] = component_info.name ? component_info.name : "";
+			component["size"] = component_info.size;
 			component["prius_size"] = component_info.prius_info.size;
 			if (component_info.prius) {
 				auto prius_json = nlohmann::json::array_t();

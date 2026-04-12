@@ -36,7 +36,7 @@ namespace rivet_hook::game {
 
 	static_assert(sizeof(HeroSystem) == 0x1b4, "HeroSystem size is not 0x1b4");
 
-	extern HeroSystem *g_HeroSystem;
-
 #pragma pack(pop)
+
+	extern HeroSystem *g_HeroSystem;
 } // namespace rivet_hook::game

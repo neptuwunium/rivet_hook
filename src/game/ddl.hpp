@@ -107,15 +107,13 @@ namespace rivet_hook::game {
 		int64_t size;
 	};
 
-	constexpr int COMPONENT_BASE_CLASS_IS_NEXT_ENTRY = 1;
-
 	struct ComponentInfo {
-		ddl_call_t *update_early;
-		ddl_call_t *update_early2;
-		ddl_call_t *update;
-		ddl_call_t *update_late;
-		ddl_call_t *update_thread;
-		ddl_call_t *update_thread2;
+		ddl_call_t *update_first;
+		ddl_call_t *update_first_results;
+		ddl_call_t *update_middle;
+		ddl_call_t *update_last;
+		ddl_call_t *update_async;
+		ddl_call_t *update_async_results;
 		ComponentPriusInfo prius_info;
 		const char *name;
 		void *unknown1;
