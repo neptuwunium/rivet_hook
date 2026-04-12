@@ -177,11 +177,6 @@ namespace rivet_hook::ddl {
 			return;
 		}
 
-		if (WaitForSingleObject(g_game_inited, INFINITE) == WAIT_FAILED) {
-			g_output << "[DDL] wait failed??\n";
-			return;
-		}
-
 		g_output << "[DDL] dumping...\n";
 
 		const auto *type_hash_map = static_cast<const DDLHashMap *>(load_rel_var(hm_pointer, DDL_HASH_MAP_ADDRESS));
@@ -380,11 +375,6 @@ namespace rivet_hook::ddl {
 			return;
 		}
 
-		if (WaitForSingleObject(g_game_inited, INFINITE) == WAIT_FAILED) {
-			g_output << "[version] wait failed??\n";
-			return;
-		}
-
 		g_output << "[version] dumping...\n";
 		auto func1 = reinterpret_cast<version_str_t>(function_ptr);
 		auto func2 = reinterpret_cast<version_hash_t>(hash_function_ptr);
@@ -419,11 +409,6 @@ namespace rivet_hook::ddl {
 	auto
 	dump_components() -> void {
 		g_output << "[rivet] dumping components\n";
-
-		if (WaitForSingleObject(g_game_inited, INFINITE) == WAIT_FAILED) {
-			g_output << "[component] wait failed??\n";
-			return;
-		}
 
 		auto component_registry = load_rel_var(find_address("component registry", g_game_module, COMPONENT_REGISTER_SIGNATURE), COMPONENT_REGISTRY_ADDRESS);
 		auto component_count = load_rel_var(find_address("component count", g_game_module, COMPONENT_REGISTER_SIGNATURE), COMPONENT_COUNT_ADDRESS);
@@ -491,6 +476,11 @@ namespace rivet_hook::ddl {
 
 	auto
 	dump() -> void {
+		if (WaitForSingleObject(g_game_inited, INFINITE) == WAIT_FAILED) {
+			g_output << "[DDL] wait failed??\n";
+			return;
+		}
+
 		if (g_settings.dump_ddl) {
 			if (g_settings.debug_ddl) {
 				std::filesystem::create_directory("./ddl");
