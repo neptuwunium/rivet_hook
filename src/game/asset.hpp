@@ -23,4 +23,4 @@ namespace rivet_hook::game {
 	static_assert(offsetof(Asset, nameOffset) == 0x18, "Asset nameOffset offset mismatch");
 
 #pragma pack(pop)
-} // namespace rivet_hook::game::asset
+} // namespace rivet_hook::game

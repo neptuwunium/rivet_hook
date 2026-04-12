@@ -14,6 +14,8 @@
 namespace rivet_hook {
 	std::thread g_overlay_init_thread;
 	std::thread g_overlay_fini_thread;
+	game::HeroSystem *g_HeroManager = nullptr;
+	game::SceneManager *g_SceneManager = nullptr;
 
 	auto
 	Overlay::init() -> void {

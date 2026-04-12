@@ -11,5 +11,9 @@
 namespace rivet_hook::game {
 #pragma pack(push, 1)
 
+	struct SceneManager { };
+
+	extern SceneManager *g_SceneManager;
+
 #pragma pack(pop)
-}
+} // namespace rivet_hook::game

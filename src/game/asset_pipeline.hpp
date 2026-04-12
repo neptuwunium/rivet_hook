@@ -356,4 +356,4 @@ namespace rivet_hook::game {
 	using dstorage_enqueue_request_t = void(STDMETHODCALLTYPE *)(IDStorageQueue *self, const DSTORAGE_REQUEST *request);
 	using dstorage_create_context_t = NxDStorageWorkerContext *(*) (NxDStorageWorkerContext * self, void *callback, int32_t bufferSize, const char *name);
 	using dstorage_init_t = bool (*)(NxDStorage *self, ID3D12Device *device, NxDStorageConfig *config);
-} // namespace rivet_hook::game::asset_pipeline
+} // namespace rivet_hook::game
