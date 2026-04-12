@@ -45,16 +45,16 @@ toml11_dep = dependency('', required: false)
 if not compiler.check_header('toml.hpp')
     toml11_dep = dependency('toml11', version: '>= 4.4.0')
 endif
-
+# imgui has no stable api, can't rely on system headers, we also are the only one disabling obsolete functions
 imgui_dep = subproject('imgui',
    default_options: {
        'dx12': 'enabled',
        'win': 'enabled',
        'disable_obsolete_functions': true,
    },
-   required: true).get_variable('imgui_dep') # imgui has no stable api, can't rely on system headers
+   required: true).get_variable('imgui_dep')
 
-dstorage_dep = subproject('directstorage').get_variable('directstorage_dep')
+dstorage_dep = dependency('directstorage', version: '= 1.2.2')
 dxgi_dep = compiler.find_library('dxgi', required: true)
 d3d12_dep = compiler.find_library('d3d12', required: true)
 directxmath_dep = dependency('directxmath', version: '>= 2024.10.15.1')
