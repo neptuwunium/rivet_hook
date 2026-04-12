@@ -45,11 +45,6 @@ if not compiler.check_header('toml.hpp')
     toml11_dep = dependency('toml11', version: '>= 4.4.0')
 endif
 
-directx = subproject('directx')
-dstorage_dep = directx.get_variable('dstorage_dep')
-dxgi_dep = directx.get_variable('dxgi_dep')
-d3d12_dep = directx.get_variable('d3d12_dep')
-
 imgui_dep = subproject('imgui',
    default_options: {
        'dx12': 'enabled',
@@ -58,6 +53,7 @@ imgui_dep = subproject('imgui',
    },
    required: true).get_variable('imgui_dep') # imgui has no stable api, can't rely on system headers
 
+dstorage_dep = subproject('directstorage').get_variable('directstorage_dep')
 dxgi_dep = compiler.find_library('dxgi', required: true)
 d3d12_dep = compiler.find_library('d3d12', required: true)
 
