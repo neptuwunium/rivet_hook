@@ -223,9 +223,9 @@ namespace rivet_hook::game::asset_pipeline {
 		uint64_t *destPtr;
 		uint64_t queue;
 		uint32_t oldMinLod;
-		uint32_t newMinLod;
-		uint32_t numRanges;
 		uint32_t fileSize;
+		uint32_t numRanges;
+		uint32_t unknown;
 		MipDataRange memRanges[0x100];
 		MipDataRange fileRanges[0x100];
 		GPUDesc11 *desc;

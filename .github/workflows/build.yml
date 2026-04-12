@@ -7,9 +7,6 @@ name: Build
 on:
   push:
     branches: [ stable ]
-  pull_request:
-    branches: [ stable, develop ]
-    types: [ opened, synchronize, reopened ]
 
 jobs:
   build:
