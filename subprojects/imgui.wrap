@@ -1,14 +1,9 @@
 [wrap-file]
-directory = imgui-1.92.5
-source_url = https://github.com/ocornut/imgui/archive/refs/tags/v1.92.5.tar.gz
-source_filename = imgui-1.92.5.tar.gz
-source_hash = 0eb50fe9aeba1a51f96b5843c7f630a32ed2e9362d693c61b87e4fa870cf826d
-source_fallback_url = https://wrapdb.mesonbuild.com/v2/imgui_1.92.5-1/get_source/imgui-1.92.5.tar.gz
-patch_filename = imgui_1.92.5-1_patch.zip
-patch_url = https://wrapdb.mesonbuild.com/v2/imgui_1.92.5-1/get_patch
-patch_fallback_url = https://github.com/mesonbuild/wrapdb/releases/download/imgui_1.92.5-1/imgui_1.92.5-1_patch.zip
-patch_hash = 636e9099a55869f25a95739b345e844c6b42166a0a0d22837ffbedd8e7af0bce
-wrapdb_version = 1.92.5-1
+directory = imgui-1.92.7
+source_url = https://github.com/ocornut/imgui/archive/refs/tags/v1.92.7.tar.gz
+source_filename = imgui-1.92.7.tar.gz
+source_hash = b21b14ce1ef6dd4d85fa54f68f8449a9be94f3b453aba7fe4ea2a9764e43a5ef
+patch_directory = imgui
 
 [provide]
 dependency_names = imgui

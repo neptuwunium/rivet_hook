@@ -8,8 +8,7 @@ project('rivet', 'cpp',
 	default_options: [
 		'prefix=/usr',
 		'warning_level=3',
-		'cpp_std=c++20',
-        'default_library=shared'
+		'cpp_std=c++20'
 	],
     meson_version: '>=1.2.1')
 
@@ -52,11 +51,12 @@ dxgi_dep = directx.get_variable('dxgi_dep')
 d3d12_dep = directx.get_variable('d3d12_dep')
 
 imgui_dep = subproject('imgui',
-                       default_options: {
-                           'dx12': 'enabled',
-                           'win': 'enabled',
-                       },
-                       required: true).get_variable('imgui_dep') # imgui has no stable api, can't rely on system headers
+   default_options: {
+       'dx12': 'enabled',
+       'win': 'enabled',
+       'disable_obsolete_functions': true,
+   },
+   required: true).get_variable('imgui_dep') # imgui has no stable api, can't rely on system headers
 
 dxgi_dep = compiler.find_library('dxgi', required: true)
 d3d12_dep = compiler.find_library('d3d12', required: true)
