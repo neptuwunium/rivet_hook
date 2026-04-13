@@ -62,7 +62,7 @@ namespace rivet_hook::ddl {
 					}
 				default:
 					{
-						if (g_settings.debug_ddl && (object + offset)[index] != 0 && type_ptr != nullptr) {
+						if (g_settings.ddl.debug_ddl && (object + offset)[index] != 0 && type_ptr != nullptr) {
 							g_output << "[DDL] " << type_ptr->name << " field " << type_ptr->field_names[type_index] << " (index " << index << ", type " << static_cast<int>(field_type)
 									 << ") has non-zero value that is not handled\n";
 						}
@@ -159,7 +159,7 @@ namespace rivet_hook::ddl {
 			return;
 		}
 
-		if (g_settings.debug_ddl && reinterpret_cast<const uint64_t *>(object + offset)[0] != 0) {
+		if (g_settings.ddl.debug_ddl && reinterpret_cast<const uint64_t *>(object + offset)[0] != 0) {
 			g_output << "[DDL] " << type_ptr->name << " field " << type_ptr->field_names[type_index] << " (type " << static_cast<int>(field_type) << ", array type " << static_cast<int>(array_type)
 					 << ") has non-zero value that is not handled\n";
 		}
@@ -233,7 +233,7 @@ namespace rivet_hook::ddl {
 				ddl_inst_this = nullptr;
 			}
 
-			if (g_settings.debug_ddl && ddl_inst_this != nullptr) {
+			if (g_settings.ddl.debug_ddl && ddl_inst_this != nullptr) {
 				std::ofstream ddl_bin;
 				ddl_bin.open("./ddl/" + std::string(type_ptr->name) + ".bin", std::ios::app | std::ios::binary);
 				ddl_bin.write(static_cast<char *>(ddl_inst_this), type_ptr->allocation_size + 16);
@@ -325,7 +325,7 @@ namespace rivet_hook::ddl {
 			type_info["fields"] = fields;
 			types.push_back(type_info);
 
-			if (g_settings.debug_ddl) {
+			if (g_settings.ddl.debug_ddl) {
 				std::ofstream ddl_json_data;
 				ddl_json_data.open("./ddl/" + std::string(type_ptr->name) + ".json");
 				auto ddl_json_text = type_info.dump(4);
@@ -482,21 +482,22 @@ namespace rivet_hook::ddl {
 			return;
 		}
 
-		if (g_settings.dump_ddl) {
-			if (g_settings.debug_ddl) {
+		if (g_settings.ddl.dump_ddl) {
+			if (g_settings.ddl.debug_ddl) {
 				std::filesystem::create_directory("./ddl");
 			}
 			dump_ddl();
 		}
 
-		if (g_settings.dump_versions) {
+		if (g_settings.ddl.dump_versions) {
 			dump_versions();
 		}
 
-		if (g_settings.dump_components) {
+		if (g_settings.ddl.dump_components) {
 			dump_components();
 		}
 
 		g_output.flush();
+		g_settings.save();
 	}
 } // namespace rivet_hook::ddl

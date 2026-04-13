@@ -456,7 +456,7 @@ namespace rivet_hook {
 			if (result > 0) {
 				if (raw->header.dwType == RIM_TYPEKEYBOARD &&
 					raw->data.keyboard.Flags & RI_KEY_BREAK) {
-					if (raw->data.keyboard.VKey == g_settings.toggle_key) {
+					if (raw->data.keyboard.VKey == g_settings.overlay.toggle_key) {
 						imgui_visible = !imgui_visible;
 						ToggleCursor();
 					} else {
@@ -500,6 +500,7 @@ namespace rivet_hook {
 	g_output << "[overlay] " msg "\n"; \
 	g_output.flush();                  \
 	destroy_window();                  \
+	g_settings.save();                 \
 	return
 
 		ComPtr<IDXGIFactory> dxgi_factory;

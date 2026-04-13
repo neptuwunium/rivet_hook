@@ -427,7 +427,7 @@ namespace rivet_hook {
 	load_mod_assets() -> void {
 		const auto cwd = std::filesystem::current_path();
 
-		for (const auto &entry : g_settings.asset_paths) {
+		for (const auto &entry : g_settings.assets.paths) {
 			auto path = std::filesystem::path(entry);
 
 			if (!path.is_absolute()) {
@@ -463,7 +463,7 @@ namespace rivet_hook {
 
 	auto
 	open_file(const intptr_t self, AssetFile *file, const AssetId asset_id, AssetType type, const int32_t platform, const uint8_t manager_id) -> void {
-		if (g_settings.log_loose_io) {
+		if (g_settings.log.loose_io) {
 			g_output << "[loose][open ] " << std::hex << asset_id << " type: " << static_cast<int32_t>(type) << " manager: " << static_cast<uint32_t>(manager_id) << " status: " << static_cast<uint32_t>(file->status)
 					 << " padding: " << file->padding << " data: " << file->data << " asset_id: " << file->asset_id << "\n";
 			g_output.flush();
@@ -471,7 +471,7 @@ namespace rivet_hook {
 
 		if (type < AssetType::Count) {
 			if (const auto *mod_file = find_mod_asset(asset_id, type); mod_file != nullptr) {
-				if (g_settings.log_mod_access) {
+				if (g_settings.assets.log) {
 					g_output << "[loose][open ] " << std::hex << asset_id << " type: " << static_cast<int32_t>(type) << " manager: " << static_cast<uint32_t>(manager_id) << " status: " << static_cast<uint32_t>(file->status)
 							 << " padding: " << file->padding << " data: " << file->data << " asset_id: " << file->asset_id << "\n";
 					g_output.flush();
@@ -491,14 +491,14 @@ namespace rivet_hook {
 
 	auto
 	resolve_handle(const intptr_t self, const AssetId asset_id, AssetType type, const int32_t platform, const uint8_t manager_id) -> int64_t {
-		if (g_settings.log_loose_io) {
+		if (g_settings.log.loose_io) {
 			g_output << "[loose][reslv] " << std::hex << asset_id << " type: " << static_cast<int32_t>(type) << " manager: " << static_cast<uint32_t>(manager_id) << "\n";
 			g_output.flush();
 		}
 
 		if (type < AssetType::Count) {
 			if (has_mod_asset(asset_id, type)) {
-				if (g_settings.log_mod_access) {
+				if (g_settings.assets.log) {
 					g_output << "[loose][reslv] " << std::hex << asset_id << " is modded\n";
 					g_output.flush();
 				}
@@ -512,14 +512,14 @@ namespace rivet_hook {
 
 	auto
 	read_file(const intptr_t self, AssetFile *file, char *buffer, const size_t offset, const size_t size, const int32_t priority, const int32_t unknown2) -> bool {
-		if (g_settings.log_loose_io) {
+		if (g_settings.log.loose_io) {
 			g_output << "[loose][read ] offset: " << std::hex << offset << " size: " << size << " status: " << static_cast<uint32_t>(file->status) << " padding: " << file->padding << " data: " << file->data
 					 << " asset_id: " << file->asset_id << "\n";
 			g_output.flush();
 		}
 
 		if (const auto type = static_cast<AssetType>(file->data & 0xFF); (file->data & RIVET_SENTINEL) == RIVET_SENTINEL && type < AssetType::Count) {
-			if (g_settings.log_mod_access) {
+			if (g_settings.assets.log) {
 				g_output << "[loose][read ] offset: " << std::hex << offset << " size: " << size << " status: " << static_cast<uint32_t>(file->status) << " padding: " << file->padding << " data: " << file->data
 						 << " asset_id: " << file->asset_id << "\n";
 				g_output.flush();
@@ -538,7 +538,7 @@ namespace rivet_hook {
 			}
 
 			game_set_file_status(file, AssetFileStatus::ReadFailed);
-			if (g_settings.log_mod_access) {
+			if (g_settings.assets.log) {
 				g_output << "[loose][read ] trying to read something that does not exist.\n";
 				g_output.flush();
 			}
@@ -555,12 +555,12 @@ namespace rivet_hook {
 		if (const auto type = static_cast<AssetType>(file->data & 0xFF); (file->data & RIVET_SENTINEL) == RIVET_SENTINEL && type < AssetType::Count) {
 			game_set_file_status(file, AssetFileStatus::Closed);
 			file->data = 0;
-			has_mod = g_settings.log_mod_access;
+			has_mod = g_settings.assets.log;
 		} else {
 			game_close_file(self, file);
 		}
 
-		if (g_settings.log_loose_io || has_mod) {
+		if (g_settings.log.loose_io || has_mod) {
 			g_output << "[loose][close] status: " << static_cast<uint32_t>(file->status) << " padding: " << file->padding << " data: " << file->data << " asset_id: " << file->asset_id << "\n";
 			g_output.flush();
 		}
@@ -577,7 +577,7 @@ namespace rivet_hook {
 			LoadMetadata meta = metadata[i];
 			uint64_t assetId = assetIds[i];
 
-			if (g_settings.log_asset_opens) {
+			if (g_settings.log.asset_io) {
 				g_output << "[built] " << std::hex << assetId << " type: " << static_cast<uint32_t>(meta.type) << "\n";
 			}
 
@@ -591,32 +591,32 @@ namespace rivet_hook {
 			}
 
 			if (mod_file != nullptr && mod_file->valid()) {
-				if (g_settings.log_mod_access) {
+				if (g_settings.assets.log) {
 					g_output << "[built] " << std::hex << assetId << " is modded\n";
 				}
 
-				if (g_settings.log_mod_access && g_settings.log_mod_state) {
+				if (g_settings.assets.log && g_settings.assets.verbose) {
 					g_output << "[built] " << std::hex << assetId << " create header\n";
 				}
 
 				AssetHeader *header = game_alloc_asset(0, 1, assetId, &meta, static_cast<uint8_t>(mod_file->language));
 
-				if (g_settings.log_mod_access && g_settings.log_mod_state) {
+				if (g_settings.assets.log && g_settings.assets.verbose) {
 					g_output << "[built] " << std::hex << assetId << " header created\n";
 				}
 
 				if (header) {
-					if (g_settings.log_mod_access && g_settings.log_mod_state) {
+					if (g_settings.assets.log && g_settings.assets.verbose) {
 						g_output << "[built] " << std::hex << assetId << " check valid, ptr " << reinterpret_cast<intptr_t>(mod_file->buffer) << "\n";
 					}
 
 					const auto magic = *reinterpret_cast<const uint32_t *>(mod_file->buffer);
-					if (g_settings.log_mod_access && g_settings.log_mod_state) {
+					if (g_settings.assets.log && g_settings.assets.verbose) {
 						g_output << "[built] " << std::hex << assetId << " magic " << magic << "\n";
 					}
 
 					if (mod_file->size <= 0x24 || !game_is_asset_valid(magic, meta.type, assetId)) {
-						if (g_settings.log_mod_access && g_settings.log_mod_state) {
+						if (g_settings.assets.log && g_settings.assets.verbose) {
 							g_output << "[built] " << std::hex << assetId << " not valid\n";
 						}
 
@@ -624,19 +624,19 @@ namespace rivet_hook {
 						goto commit;
 					}
 
-					if (g_settings.log_mod_access && g_settings.log_mod_state) {
+					if (g_settings.assets.log && g_settings.assets.verbose) {
 						g_output << "[built] " << std::hex << assetId << " valid, create\n";
 					}
 
 					if ((*game_create_asset)(header, mod_file->buffer, game_create_asset_data)) {
-						if (g_settings.log_mod_access && g_settings.log_mod_state) {
+						if (g_settings.assets.log && g_settings.assets.verbose) {
 							g_output << "[built] " << std::hex << assetId << " created\n";
 						}
 
 						intptr_t offset = 0x24;
 						for (int32_t j = 0; j < header->dataRangeCount; ++j) {
 							if (static_cast<size_t>(offset + header->dataRanges[j].size) > mod_file->size) {
-								if (g_settings.log_mod_access && g_settings.log_mod_state) {
+								if (g_settings.assets.log && g_settings.assets.verbose) {
 									g_output << "[built] " << std::hex << assetId << " out of bounds\n";
 								}
 
@@ -644,7 +644,7 @@ namespace rivet_hook {
 								break;
 							}
 
-							if (g_settings.log_mod_access && g_settings.log_mod_state) {
+							if (g_settings.assets.log && g_settings.assets.verbose) {
 								g_output << "[built] " << std::hex << assetId << " copy\n";
 							}
 
@@ -652,7 +652,7 @@ namespace rivet_hook {
 							offset += header->dataRanges[j].size;
 						}
 
-						if (g_settings.log_mod_access && g_settings.log_mod_state) {
+						if (g_settings.assets.log && g_settings.assets.verbose) {
 							g_output << "[built] " << std::hex << assetId << " done\n";
 						}
 
@@ -660,13 +660,13 @@ namespace rivet_hook {
 						goto commit;
 					}
 
-					if (g_settings.log_mod_access && g_settings.log_mod_state) {
+					if (g_settings.assets.log && g_settings.assets.verbose) {
 						g_output << "[built] " << std::hex << assetId << " cant create\n";
 					}
 					header->status = 4;
 
 				commit:
-					if (g_settings.log_mod_access && g_settings.log_mod_state) {
+					if (g_settings.assets.log && g_settings.assets.verbose) {
 						g_output << "[built] " << std::hex << assetId << " commit header\n";
 					}
 
@@ -779,22 +779,22 @@ namespace rivet_hook {
 		runtime_loader_ready = true;
 
 		if (const auto create_asset_id_ptrs = find_addresses("asset ids", g_game_module, CREATE_ASSET_ID_SIGNATURE); !create_asset_id_ptrs.empty()) {
-			if (g_settings.log_asset_ids) {
+			if (g_settings.log.id) {
 				create_hook("asset ids", reinterpret_cast<LPVOID>(create_asset_id_ptrs[0]), reinterpret_cast<LPVOID>(&create_asset_id), reinterpret_cast<LPVOID *>(&game_create_asset_id));
 			} else {
 				game_create_asset_id = reinterpret_cast<create_asset_id_t>(create_asset_id_ptrs[0]);
 			}
 		}
 
-		if (g_settings.log_paths) {
+		if (g_settings.log.paths) {
 			create_hook("asset paths", g_game_module, LOAD_ASSET_SIGNATURE, reinterpret_cast<LPVOID>(&mgr_load_asset), reinterpret_cast<LPVOID *>(&game_mgr_load_asset));
 		}
 
-		if (g_settings.log_cohtml) {
+		if (g_settings.log.cohtml) {
 			hook_cohtml();
 		}
 
-		if (!g_settings.enable_asset_loader) {
+		if (!g_settings.assets.enabled) {
 			return;
 		}
 
@@ -871,7 +871,7 @@ namespace rivet_hook {
 
 		// disable fencing
 		// NOTE: This bricks DirectStorage, need to find a workaround for "next gen" texture fencing.
-		if (g_settings.force_legacy_textures) {
+		if (g_settings.assets.disable_dstorage) {
 			// needed to reset fencing a second time once the game starts.
 			create_hook("window init", g_game_module, WINDOW_INIT_RCRA_SIGNATURE, reinterpret_cast<LPVOID>(&window_init), reinterpret_cast<LPVOID *>(&game_window_init));
 
@@ -879,7 +879,7 @@ namespace rivet_hook {
 			*disable_directstorage = true;
 		}
 
-		#undef RVA
+		g_settings.save();
 	}
 
 	auto

@@ -57,7 +57,7 @@ namespace rivet_hook {
 
 	auto
 	Overlay::HandleKeyPress(const int vk) -> void {
-		if (vk == g_settings.spawn_debug_actor_key) {
+		if (vk == g_settings.overlay.spawn_debug_actor_key) {
 			SetEvent(g_SpawnSignal);
 		}
 	}
@@ -95,7 +95,7 @@ namespace rivet_hook {
 
 	auto
 	Overlay::Init() -> void {
-		if (!g_settings.enable_overlay) {
+		if (!g_settings.overlay.enabled) {
 			return;
 		}
 
@@ -107,7 +107,7 @@ namespace rivet_hook {
 
 	auto
 	Overlay::Fini() -> void {
-		if (!g_settings.enable_overlay) {
+		if (!g_settings.overlay.enabled) {
 			return;
 		}
 
