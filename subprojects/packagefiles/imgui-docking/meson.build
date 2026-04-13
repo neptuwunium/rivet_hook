@@ -194,7 +194,7 @@ endif
 # default_options:['cpp_std=c++17'] doesn't work under certain circumstances
 override_opts = ['cpp_std=c++17']
 
-args = ['-DIMGUI_API=']
+args = ['-DIMGUI_API=', '-DIMGUI_USER_CONFIG="../../src/rivet_imgui.h"']
 if get_option('disable_obsolete_functions')
     args += ['-DIMGUI_DISABLE_OBSOLETE_FUNCTIONS']
 endif

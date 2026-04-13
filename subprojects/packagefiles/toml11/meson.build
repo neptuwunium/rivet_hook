@@ -3,8 +3,7 @@ project(
   'cpp',
   license: 'MIT',
   default_options: [
-    'buildtype=release',
-    'warning_level=3'
+    'buildtype=release'
   ],
   version: '4.4.0',
   meson_version: '>=0.50.0'

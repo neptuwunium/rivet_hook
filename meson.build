@@ -4,10 +4,9 @@
 
 project('rivet', 'cpp',
 	license: 'EUPL-1.2',
-	version: '0.0.6',
+	version: '1.1.0',
 	default_options: [
 		'prefix=/usr',
-		'warning_level=3',
 		'cpp_std=c++20'
 	],
     meson_version: '>=1.2.1')
@@ -45,6 +44,7 @@ toml11_dep = dependency('', required: false)
 if not compiler.check_header('toml.hpp')
     toml11_dep = dependency('toml11', version: '>= 4.4.0')
 endif
+
 # imgui has no stable api, can't rely on system headers, we also are the only one disabling obsolete functions
 imgui_dep = subproject('imgui-docking',
    default_options: {
