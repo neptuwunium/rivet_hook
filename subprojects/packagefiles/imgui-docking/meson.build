@@ -13,7 +13,7 @@ if host_machine.system() == 'darwin'
     )
 endif
 
-include_dirs = include_directories('.', 'backends')
+include_dirs = include_directories('.', 'backends', 'misc/cpp', 'misc/freetype', 'misc/single_file')
 sources = files(
     'imgui.cpp',
     'imgui_demo.cpp',

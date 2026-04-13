@@ -8,6 +8,9 @@
 #include <string>
 #include <vector>
 
+#define WIN32_LEAN_AND_MEAN
+#include "windows.h"
+
 namespace rivet_hook {
 	constexpr static auto settings_name = R"(.\rivet.toml)";
 
@@ -17,7 +20,11 @@ namespace rivet_hook {
 		bool attach_context_log = false;
 		bool attach_log = false;
 		bool unpause_focus = false;
+
+		static constexpr auto overlay_group = "overlay";
 		bool enable_overlay = true;
+		int toggle_key = VK_F3;
+		int spawn_debug_actor_key = VK_F4;
 
 		static constexpr auto ddl_group = "ddl";
 		bool dump_versions = false;

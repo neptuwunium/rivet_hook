@@ -12,19 +12,36 @@
 
 #include "runtime.hpp"
 #include "settings.hpp"
+#include "vk_enum.hpp"
 
-#define LOAD_SETTING_EX(group, type, name, var_name)                                 \
-	if (tbl.contains(group) && tbl.at(group).is_table()) {                           \
-		settings.name = toml::find_or<type>(tbl.at(group), var_name, settings.name); \
-	}
+#define LOAD_SETTING_EX(group, type, name, var_name) \
+if (tbl.contains(group) && tbl.at(group).is_table()) { \
+	settings.name = toml::find_or<type>(tbl.at(group), var_name, settings.name); \
+}
+
+#define LOAD_SETTING_KEY_EX(group, name, var_name) \
+if (tbl.at(group).is_table()) { \
+	auto var = tbl.at(group).at(var_name); \
+	if (var.is_string()) { settings.name = StringToVKey(var.as_string()); } \
+	else if (var.is_integer()) { settings.name = static_cast<int>(var.as_integer()); } \
+}
 
 #define LOAD_SETTING(group, type, name) LOAD_SETTING_EX(group, type, name, #name)
 
+#define LOAD_SETTING_KEY(group, name) LOAD_SETTING_KEY_EX(group, name, #name)
+
 #define SAVE_SETTING_EX(group, name, var_name, comment) \
-	tbl[group][var_name] = name;                        \
+	tbl[group][var_name] = name; \
+	tbl[group].at(var_name).comments().push_back(" " comment)
+
+#define SAVE_SETTING_KEY_EX(group, name, var_name, comment) \
+	if(const auto value = VKeyToString(name); !value.empty()) { tbl[group][var_name] = value; } \
+	else tbl[group][var_name] = name; \
 	tbl[group].at(var_name).comments().push_back(" " comment)
 
 #define SAVE_SETTING(group, name, comment) SAVE_SETTING_EX(group, name, #name, comment)
+
+#define SAVE_SETTING_KEY(group, name, comment) SAVE_SETTING_KEY_EX(group, name, #name, comment)
 
 namespace rivet_hook {
 	auto
@@ -61,7 +78,10 @@ namespace rivet_hook {
 			LOAD_SETTING(utility_group, bool, attach_context_log);
 			LOAD_SETTING(utility_group, bool, attach_log);
 			LOAD_SETTING(utility_group, bool, unpause_focus);
-			LOAD_SETTING(utility_group, bool, enable_overlay);
+
+			LOAD_SETTING_EX(overlay_group, bool, enable_overlay, "enabled");
+			LOAD_SETTING_KEY(overlay_group, toggle_key);
+			LOAD_SETTING_KEY(overlay_group, spawn_debug_actor_key);
 
 			LOAD_SETTING(ddl_group, bool, dump_versions);
 			LOAD_SETTING(ddl_group, bool, dump_components);
@@ -117,6 +137,7 @@ namespace rivet_hook {
 	Settings::save() const -> void {
 		toml::value tbl = toml::ordered_table();
 		tbl[utility_group] = toml::ordered_table();
+		tbl[overlay_group] = toml::ordered_table();
 		tbl[ddl_group] = toml::ordered_table();
 		tbl[renderdoc_group] = toml::ordered_table();
 		tbl[assets_group] = toml::ordered_table();
@@ -127,7 +148,10 @@ namespace rivet_hook {
 		SAVE_SETTING(utility_group, attach_context_log, "redirect the internal logger context state to rivet.log; disable by default for clutter reasons");
 		SAVE_SETTING(utility_group, attach_log, "redirect the internal logger to rivet.log; disable by default because the same line is printed frequently");
 		SAVE_SETTING(utility_group, unpause_focus, "prevent the game from pausing when alt tabbed");
-		SAVE_SETTING(utility_group, enable_overlay, "enable imgui overlay for various in game stuffs");
+
+		SAVE_SETTING_EX(overlay_group, enable_overlay, "enabled", "enable imgui overlay for various in game stuffs");
+		SAVE_SETTING_KEY(overlay_group, toggle_key, "what key to toggle the imgui overlay with");
+		SAVE_SETTING_KEY(overlay_group, spawn_debug_actor_key, "what key to debug spawn an actor with");
 
 		SAVE_SETTING(ddl_group, dump_versions, "dumps versions to json; disable by default for clutter reasons");
 		SAVE_SETTING(ddl_group, dump_components, "dumps components to json; disable by default for clutter reasons");

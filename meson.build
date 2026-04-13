@@ -46,7 +46,7 @@ if not compiler.check_header('toml.hpp')
     toml11_dep = dependency('toml11', version: '>= 4.4.0')
 endif
 # imgui has no stable api, can't rely on system headers, we also are the only one disabling obsolete functions
-imgui_dep = subproject('imgui',
+imgui_dep = subproject('imgui-docking',
    default_options: {
        'dx12': 'enabled',
        'win': 'enabled',
@@ -70,6 +70,7 @@ rivet_hook = shared_library('rivet_hook', [
         'src/runtime_loader.cpp',
         'src/settings.cpp',
         'src/signature_engine.cpp',
+        'src/vk_enum.cpp',
     ],
     link_args: compiler.get_supported_arguments('-static-libgcc', '-static-libstdc++'),
     dependencies: [

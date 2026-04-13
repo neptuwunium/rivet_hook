@@ -226,7 +226,7 @@ namespace rivet_hook {
 				create_hook("crash handler", crash_handler, reinterpret_cast<LPVOID>(&null_func), nullptr);
 			}
 
-			Overlay::init();
+			Overlay::Init();
 			AssetLoader::init();
 			g_output << "[rivet] starting ddl thread\n";
 			g_ddl_dump_thread = std::thread(ddl::dump);
@@ -275,7 +275,7 @@ namespace rivet_hook {
 				FreeLibrary(g_renderdoc);
 			}
 
-			Overlay::fini();
+			Overlay::Fini();
 			AssetLoader::fini();
 
 			if (g_ddl_dump_thread.joinable()) {

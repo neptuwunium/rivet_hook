@@ -5,70 +5,113 @@
 #include <thread>
 
 #include <imgui.h>
+#include <imgui_stdlib.h>
 
 #include "game/hero_manager.hpp"
 #include "game/scene_manager.hpp"
 #include "overlay.hpp"
 #include "runtime.hpp"
 
+#include <mutex>
+
 namespace rivet_hook {
 	using namespace game;
-	std::thread g_overlay_init_thread;
-	std::thread g_overlay_fini_thread;
+
+	std::thread g_OverlayInitThread;
+	std::thread g_OverlayFiniThread;
+	std::thread g_SpawnThread;
+	HANDLE g_SpawnSignal;
+
 	HeroSystem *g_HeroManager = nullptr;
 	SceneManager *g_SceneManager = nullptr;
-
-	auto
-	Overlay::init() -> void {
-		if (!g_settings.enable_overlay) {
-			return;
-		}
-
-		g_overlay_init_thread = std::thread(d3d12_init);
-	}
-
-	auto
-	Overlay::fini() -> void {
-		if (!g_settings.enable_overlay) {
-			return;
-		}
-
-		g_overlay_fini_thread = std::thread(d3d12_fini);
-	}
-
-	Asset *testAsset = nullptr;
-
-	using spawn_bot_t = void (*)(intptr_t self, Asset *actorAsset);
-	using load_actor_asset_t = Asset * (*)(intptr_t self, const char* name, Asset* loadedFrom, char const* loadInfo);
-
-	const auto spawn_bot = reinterpret_cast<spawn_bot_t>(0x1403b3450);
-	const auto load_actor_asset = reinterpret_cast<load_actor_asset_t>(0x140f17f00);
 	constexpr intptr_t ACTOR_ASSET_MANAGER = 0x1452e0b80;
-	bool loading = false;
+
+	using SpawnBot_t = void (*)(intptr_t self, Asset *actorAsset);
+	using LoadActorAsset_t = Asset * (*)(intptr_t self, const char* name, Asset* loadedFrom, char const* loadInfo);
+
+	const auto game_SpawnBot = reinterpret_cast<SpawnBot_t>(0x1403b3450);
+	const auto game_LoadActorAsset = reinterpret_cast<LoadActorAsset_t>(0x140f17f00);
+
+	char debugSpawnActorPath[0x200];
+	Asset *debugSpawnActor = nullptr;
+	bool isSpawningDebugActor = false;
 
 	auto
-	Overlay::draw_imgui() -> void {
+	SpawnDebugActor() -> void {
+		while (true) {
+			if (FAILED(WaitForSingleObject(g_SpawnSignal, INFINITE))) {
+				break;
+			}
+
+			{
+				if (debugSpawnActor == nullptr || debugSpawnActor->status != AssetStatus::Loaded || isSpawningDebugActor) {
+					continue;
+				}
+
+				isSpawningDebugActor = true;
+				game_SpawnBot(0, debugSpawnActor);
+				isSpawningDebugActor = false;
+			}
+		}
+	}
+
+	auto
+	Overlay::HandleKeyPress(const int vk) -> void {
+		if (vk == g_settings.spawn_debug_actor_key) {
+			SetEvent(g_SpawnSignal);
+		}
+	}
+
+	auto
+	DrawDebugSpawn() -> void {
+		const auto isDebugActorLoading = debugSpawnActor != nullptr && debugSpawnActor->status < AssetStatus::Loaded;
+		const auto isDebugActorInvalid = debugSpawnActor == nullptr || debugSpawnActor->status != AssetStatus::Loaded || isSpawningDebugActor;
+		const auto shouldHideInput = isDebugActorLoading || isSpawningDebugActor;
+
+		ImGui::LabelText("Actor Load Status", "%d", static_cast<int32_t>(debugSpawnActor ? debugSpawnActor->status : AssetStatus::Invalid));
+		ImGui::InputText("Actor Path", debugSpawnActorPath, sizeof(debugSpawnActorPath), shouldHideInput ? ImGuiInputTextFlags_ReadOnly : ImGuiInputTextFlags_None);
+
+		ImGui::BeginDisabled(isDebugActorLoading);
+		if (ImGui::Button("Load")) {
+			debugSpawnActor = game_LoadActorAsset(ACTOR_ASSET_MANAGER, debugSpawnActorPath, debugSpawnActor, nullptr);
+		}
+		ImGui::EndDisabled();
+
+		ImGui::BeginDisabled(isDebugActorInvalid);
+		if (ImGui::Button("Spawn")) {
+			SetEvent(g_SpawnSignal);
+		}
+		ImGui::EndDisabled();
+	}
+
+	auto
+	Overlay::DrawImGUI() -> void {
 		ImGui::Begin("Rivet");
 
-		ImGui::LabelText("load status", "%d", static_cast<int32_t>(testAsset ? testAsset->status : AssetStatus::Invalid));
-		if (!testAsset) {
-			if (ImGui::Button("Scary Button")) {
-				testAsset = load_actor_asset(ACTOR_ASSET_MANAGER, "characters/hero/hero_spidertank_micro/hero_glitch_gallery.actor", testAsset, nullptr);
-			}
-		} else {
-			ImGui::BeginDisabled(testAsset->status != AssetStatus::Loaded || loading);
-			if (ImGui::Button("Scarier Button")) {
-				loading = true;
-				std::thread([]{
-					if (testAsset) {
-						spawn_bot(0, testAsset);
-					}
-					loading = false;
-				}).detach();
-			}
-			ImGui::EndDisabled();
-		}
+		DrawDebugSpawn();
 
 		ImGui::End();
+	}
+
+	auto
+	Overlay::Init() -> void {
+		if (!g_settings.enable_overlay) {
+			return;
+		}
+
+		g_OverlayInitThread = std::thread(D3D12Init);
+		memset(debugSpawnActorPath, 0, sizeof(debugSpawnActorPath));
+		g_SpawnSignal = CreateEvent(nullptr, false, false, "Rivet Debug Spawn Signal");
+		g_SpawnThread = std::thread(SpawnDebugActor);
+	}
+
+	auto
+	Overlay::Fini() -> void {
+		if (!g_settings.enable_overlay) {
+			return;
+		}
+
+		CloseHandle(g_SpawnSignal);
+		g_OverlayFiniThread = std::thread(D3D12Fini);
 	}
 } // namespace rivet_hook
