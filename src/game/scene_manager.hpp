@@ -84,6 +84,4 @@ namespace rivet_hook::game {
 	static_assert(offsetof(SceneManager, actorGroupCount) == 0x7534, "SceneManager actorGroupCount offset is not 0x7534");
 
 #pragma pack(pop)
-
-	extern SceneManager *g_SceneManager;
 } // namespace rivet_hook::game

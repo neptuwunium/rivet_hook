@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: EUPL-1.2
 
+#include "imgui_internal.h"
+
 #include <thread>
 
 #include <imgui.h>
@@ -12,6 +14,7 @@
 #include "overlay.hpp"
 #include "runtime.hpp"
 
+#include <format>
 #include <mutex>
 
 namespace rivet_hook {
@@ -20,8 +23,8 @@ namespace rivet_hook {
 	std::thread g_SpawnThread;
 	HANDLE g_SpawnSignal;
 
-	HeroSystem *g_HeroManager = nullptr;
-	SceneManager *g_SceneManager = nullptr;
+	auto g_HeroManager = reinterpret_cast<HeroSystem *>(0x146007f60);
+	auto g_SceneManager = reinterpret_cast<SceneManager *>(0x14674b740);
 	constexpr intptr_t ACTOR_ASSET_MANAGER = 0x1452e0b80;
 
 	using SpawnBot_t = void (*)(intptr_t self, Asset *actorAsset);
@@ -60,7 +63,7 @@ namespace rivet_hook {
 		}
 	}
 
-	auto
+	static auto
 	DrawDebugSpawn() -> void {
 		const auto isDebugActorLoading = debugSpawnActor != nullptr && debugSpawnActor->status < AssetStatus::Loaded;
 		const auto isDebugActorInvalid = debugSpawnActor == nullptr || debugSpawnActor->status != AssetStatus::Loaded || isSpawningDebugActor;
@@ -75,6 +78,8 @@ namespace rivet_hook {
 		}
 		ImGui::EndDisabled();
 
+		ImGui::SameLine();
+
 		ImGui::BeginDisabled(isDebugActorInvalid);
 		if (ImGui::Button("Spawn")) {
 			SetEvent(g_SpawnSignal);
@@ -82,11 +87,222 @@ namespace rivet_hook {
 		ImGui::EndDisabled();
 	}
 
+	static auto
+	DrawActorInfo(EngineHandle &handle) -> void {
+		char labelSwap[0x100];
+		static auto selectedChildIndex = -1;
+		if (!handle.IsValid()) {
+			return;
+		}
+
+		const auto actor = g_SceneManager->ResolveActor(handle);
+		if (!actor) {
+			return;
+		}
+
+		ImGui::LabelText("Object", "0x%016llx", reinterpret_cast<intptr_t>(&actor->object));
+		if (actor->object) {
+			static float savedPosition[3];
+			static float savedScale[3];
+			static auto positionHandle = INVALID_ENGINE_HANDLE;
+			static auto scaleHandle = INVALID_ENGINE_HANDLE;
+
+			if (positionHandle != handle) {
+				memcpy(savedPosition, &actor->object->transform_matrix[3], sizeof(float) * 3);
+			}
+
+			if (ImGui::InputFloat3("Position", savedPosition)) {
+				positionHandle = handle;
+			}
+
+			if (scaleHandle != handle) {
+				memcpy(savedScale, &actor->object->scale, sizeof(float) * 3);
+			}
+
+			if (ImGui::InputFloat3("Scale", savedScale)) {
+				scaleHandle = handle;
+			}
+
+			if (ImGui::Button("Update")) {
+				if (positionHandle == handle) {
+					memcpy(&actor->object->transform_matrix[3], savedPosition, sizeof(float) * 3);
+					positionHandle = INVALID_ENGINE_HANDLE;
+				}
+
+				if (scaleHandle == handle) {
+					memcpy(&actor->object->scale, savedScale, sizeof(float) * 3);
+					scaleHandle = INVALID_ENGINE_HANDLE;
+				}
+			}
+		}
+		ImGui::LabelText("Type", "0x%04x", actor->type);
+		ImGui::LabelText("Scene Index", "0x%08x", actor->sceneIndex);
+		ImGui::LabelText("Flags", "0x%08x", actor->flags);
+		ImGui::BeginDisabled(!actor->parentHandle.IsValid());
+		if (ImGui::Button("Show")) {
+			handle = actor->parentHandle;
+		}
+		ImGui::EndDisabled();
+		ImGui::SameLine();
+		ImGui::Text("Index 0x%04x ", actor->parentIndex);
+		ImGui::SameLine();
+		ImGui::LabelText("Parent", "0x%08x", actor->parentHandle.value);
+
+		ImGui::Text("%d Children", actor->childCount);
+		const auto width = ImGui::GetContentRegionAvail().x;
+		if (ImGui::BeginChild("actor_children", ImVec2(width, 0), ImGuiChildFlags_Borders | ImGuiChildFlags_ResizeY | ImGuiChildFlags_AutoResizeY)) {
+			for (auto index = 0; index < actor->childCount; index++) {
+				const auto childHandle = actor->children[index];
+				if (!childHandle.IsValid()) {
+					continue;
+				}
+
+				const auto child = g_SceneManager->ResolveActor(childHandle);
+				if (!child || !child->IsValid()) {
+					continue;
+				}
+
+				const char *name = child->GetName();
+				if (!name || !*name) {
+					std::sprintf(labelSwap, "Actor %08x##DrawActorInfo", handle.value);
+					name = labelSwap;
+				}
+
+				ImGui::PushID(index);
+				if (ImGui::Selectable(name, selectedChildIndex == index)) {
+					handle = childHandle;
+				}
+				ImGui::PopID();
+			}
+		}
+		ImGui::EndChild();
+
+		ImGui::Text("%d Components", actor->componentCount);
+		if (ImGui::BeginChild("actor_components", ImVec2(width, 0))) {
+			const auto inner_width = ImGui::GetContentRegionAvail().x;
+			for (auto index = 0; index < actor->componentCount; index++) {
+				const auto [componentType, instance] = actor->components[index];
+				if (componentType == nullptr || instance == nullptr) {
+					continue;
+				}
+
+				const char *name = componentType->name;
+				ImGui::PushID(index);
+				if (ImGui::BeginChild("actor_components", ImVec2(inner_width, 0), ImGuiChildFlags_Borders | ImGuiChildFlags_AutoResizeY)) {
+					ImGui::LabelText("Name", "%s", name);
+					ImGui::LabelText("Handle", "0x%08x", instance->handle.value);
+					ImGui::LabelText("Parent Handle", "0x%08x", instance->parentComponent.value);
+					ImGui::LabelText("Child Count", "0x%02x", instance->childCount);
+
+					// todo: do something with component data.
+				}
+				ImGui::EndChild();
+				ImGui::PopID();
+			}
+		}
+		ImGui::EndChild();
+	}
+
+	static auto
+	DrawActorGroups() -> void {
+		static auto selectedIndex = -1;
+		static auto actorHandle = INVALID_ENGINE_HANDLE;
+		char labelSwap[0x100];
+
+		if (ImGui::BeginChild("actor_groups_left", ImVec2(150, 0), ImGuiChildFlags_Borders | ImGuiChildFlags_ResizeX)) {
+			for (auto index = 0; index < g_SceneManager->actorGroupCount; index++) {
+				if (const auto *actorGroup = &g_SceneManager->actorGroups[index]; actorGroup->handles != nullptr && actorGroup->count > 0) {
+					const char *name = actorGroup->name;
+					if (!name || !*name) {
+						std::sprintf(labelSwap, "ActorGroup %08x##DrawActorGroups", index);
+						name = labelSwap;
+					}
+
+					ImGui::PushID(index);
+					if (ImGui::Selectable(name, selectedIndex == index)) {
+						selectedIndex = index;
+					}
+					ImGui::PopID();
+				}
+			}
+		}
+		ImGui::EndChild();
+
+		ImGui::SameLine();
+
+		if (ImGui::BeginChild("actor_groups_middle", ImVec2(300, 0), ImGuiChildFlags_Borders | ImGuiChildFlags_ResizeX) && selectedIndex > -1 && selectedIndex < g_SceneManager->actorGroupCount) {
+			if (const auto *actorGroup = &g_SceneManager->actorGroups[selectedIndex]; actorGroup->handles != nullptr && actorGroup->count > 0) {
+				for (auto index = 0; index < actorGroup->count; index++) {
+					const auto handle = actorGroup->handles[index];
+
+					if (const auto actor = g_SceneManager->ResolveActor(handle); actor != nullptr) {
+						const char *name = actor->GetName();
+						if (!name || !*name) {
+							std::sprintf(labelSwap, "Actor %08x##DrawActorGroups", handle.value);
+							name = labelSwap;
+						}
+
+						ImGui::PushID(index);
+						if (ImGui::Selectable(name, actorHandle == handle)) {
+							actorHandle = handle;
+						}
+						ImGui::PopID();
+					}
+				}
+			}
+		}
+		ImGui::EndChild();
+
+		ImGui::SameLine();
+
+		if (ImGui::BeginChild("actor_groups_right", ImVec2(0, 0)) && actorHandle.IsValid()) {
+			DrawActorInfo(actorHandle);
+		}
+
+		ImGui::EndChild();
+	}
+
+	static auto
+	DrawHeroSystem() -> void {
+
+	}
+
+	static auto
+	CheckActorGroups() -> bool {
+		return g_SceneManager != nullptr && g_SceneManager->actorGroups != nullptr && g_SceneManager->actorGroupCount > 0;
+	}
+
+	static auto
+	CheckHeroSystem() -> bool {
+		return g_SceneManager != nullptr && g_SceneManager->actors != nullptr && g_HeroManager != nullptr;
+	}
+
+	using RivetImGuiCallback = void(*)();
+	using RivetImGuiCheckCallback = bool(*)();
+	static std::array<std::tuple<RivetImGuiCallback, RivetImGuiCheckCallback, const char*>, 3> tabs {{
+		{ DrawDebugSpawn, nullptr, "Spawn Actor" },
+		{ DrawActorGroups, CheckActorGroups, "Actor Groups" },
+		{ DrawHeroSystem, CheckHeroSystem, "Hero System" },
+	}};
+
 	auto
 	Overlay::DrawImGUI() -> void {
 		ImGui::Begin("Rivet");
 
-		DrawDebugSpawn();
+		ImGui::BeginTabBar("RivetTabs");
+
+		for (const auto &[callback, check, name] : tabs) {
+			ImGui::BeginDisabled(check ? !check() : false);
+
+			if (ImGui::BeginTabItem(name)) {
+				callback();
+				ImGui::EndTabItem();
+			}
+
+			ImGui::EndDisabled();
+		}
+
+		ImGui::EndTabBar();
 
 		ImGui::End();
 	}

@@ -112,6 +112,7 @@ namespace rivet_hook {
 	bool bricked = false;
 	bool imgui_initialized = false;
 	bool imgui_visible = false;
+	bool imgui_intercept_input = false;
 
 	auto
 	create_window() -> bool {
@@ -286,6 +287,9 @@ namespace rivet_hook {
 		ImGuiIO &io = ImGui::GetIO();
 		io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
 		ImGui::StyleColorsDark();
+		auto& style = ImGui::GetStyle();
+		style.Colors[ImGuiCol_WindowBg].w = 0.33f;
+		style.Colors[ImGuiCol_TitleBg].w = 0.33f;
 
 		ImGui_ImplWin32_Init(window_handle);
 
@@ -333,7 +337,7 @@ namespace rivet_hook {
 
 		const auto isCurrentlyShowing = (ci.flags & CURSOR_SHOWING) != 0;
 
-		if (imgui_visible) {
+		if (imgui_intercept_input) {
 			if (isCurrentlyShowing) {
 				return;
 			}
@@ -425,7 +429,7 @@ namespace rivet_hook {
 
 	LRESULT APIENTRY
 	WndProc(HWND hWnd, const UINT msg, const WPARAM wParam, const LPARAM lParam) {
-		if (imgui_initialized) {
+		if (imgui_initialized && imgui_intercept_input) {
 			ImGui_ImplWin32_WndProcHandler(hWnd, msg, wParam, lParam);
 			switch (msg) {
 				case WM_LBUTTONDBLCLK:
@@ -443,7 +447,7 @@ namespace rivet_hook {
 				case WM_KEYUP:
 				case WM_SYSKEYDOWN:
 				case WM_SYSKEYUP:
-				case WM_CHAR: return imgui_visible ? 0 : CallWindowProc(game_wnd_proc, hWnd, msg, wParam, lParam);
+				case WM_CHAR: return imgui_intercept_input ? 0 : CallWindowProc(game_wnd_proc, hWnd, msg, wParam, lParam);
 				default: break;
 			}
 		}
@@ -463,6 +467,14 @@ namespace rivet_hook {
 					raw->data.keyboard.Flags & RI_KEY_BREAK) {
 					if (raw->data.keyboard.VKey == g_settings.overlay.toggle_key) {
 						imgui_visible = !imgui_visible;
+						imgui_intercept_input = imgui_visible;
+						ToggleCursor();
+					} else if (raw->data.keyboard.VKey == VK_ESCAPE && imgui_visible) {
+						imgui_visible = false;
+						imgui_intercept_input = false;
+						ToggleCursor();
+					} else if (raw->data.keyboard.VKey == g_settings.overlay.release_key && imgui_visible) {
+						imgui_intercept_input = !imgui_intercept_input;
 						ToggleCursor();
 					} else {
 						Overlay::HandleKeyPress(raw->data.keyboard.VKey);
@@ -472,7 +484,7 @@ namespace rivet_hook {
 				}
 			}
 
-			if (imgui_visible) {
+			if (imgui_intercept_input) {
 				const auto old = raw->header;
 				memset(pData, 0, raw->header.dwSize);
 				raw->header = old;

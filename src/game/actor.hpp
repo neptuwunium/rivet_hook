@@ -21,9 +21,26 @@ namespace rivet_hook::game {
 
 			uint32_t value;
 		};
+
+		__forceinline auto
+		IsValid() const -> bool {
+			return value > 0 && value < UINT32_MAX;
+		}
+
+		__forceinline auto
+		operator ==(const EngineHandle &other) const -> bool {
+			return other.value == value;
+		}
+
+		__forceinline auto
+		operator !=(const EngineHandle &other) const -> bool {
+			return other.value != value;
+		}
 	};
 
 	static_assert(sizeof(EngineHandle) == 4, "ActorHandle size is not 4");
+
+	static constexpr auto INVALID_ENGINE_HANDLE = EngineHandle { .value = 0xFFFFFFFF };
 
 	struct SceneObject;
 	struct Component;
@@ -66,7 +83,7 @@ namespace rivet_hook::game {
 		double unknownDouble[2];
 		uint64_t unknown14;
 		const char *name;
-		uint64_t unknown16;
+		uint64_t unknown15;
 
 		__forceinline auto
 		GetName() const -> const char * {
@@ -75,11 +92,7 @@ namespace rivet_hook::game {
 			}
 
 			if (actorAsset && actorAsset->name && *actorAsset->name) {
-				if (actorAsset->nameOffset > 0 && actorAsset->nameOffset < 0x1ff) {
-					return &actorAsset->name[actorAsset->nameOffset];
-				}
-
-				return actorAsset->name;
+				return actorAsset->GetShortName();
 			}
 
 			return nullptr;
@@ -108,7 +121,10 @@ namespace rivet_hook::game {
 	static_assert(offsetof(Actor, name) == 0xb0, "Actor name offset is not 0xb0");
 
 	struct alignas(16) SceneObject {
-		DirectX::XMMATRIX transform;
+		union alignas(16) {
+			DirectX::XMMATRIX transform;
+			float transform_matrix[4][4];
+		};
 		DirectX::XMVECTORF32 unknownVector;
 		DirectX::XMFLOAT3 extents;
 		uint32_t objectFlags : 24;

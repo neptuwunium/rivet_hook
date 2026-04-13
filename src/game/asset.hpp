@@ -6,6 +6,7 @@
 #include <d3d12.h>
 
 #include "src/assert_helper.hpp"
+#include "src/runtime.hpp"
 
 #include <cstdint>
 
@@ -115,6 +116,29 @@ namespace rivet_hook::game {
 		uint16_t unknown4[3];
 		const char *note;
 		AssetId loadedFrom;
+
+		__forceinline auto
+		GetShortName() const -> const char * {
+			if (name && *name) {
+				g_output << name << "short name length " << nameOffset << " " << unknown4[0] << " " << unknown4[1] << " " << unknown4[2] << "\n";
+				if (nameOffset > 1) {
+					return name + nameOffset;
+				}
+
+				return name;
+			}
+
+			return nullptr;
+		}
+
+		__forceinline auto
+		GetName() const -> const char * {
+			if (name && *name) {
+				return name;
+			}
+
+			return nullptr;
+		}
 	};
 
 	size_assert(Asset, 0x30);
