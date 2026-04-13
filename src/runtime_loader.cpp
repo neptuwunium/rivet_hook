@@ -8,18 +8,14 @@
 #include <unordered_map>
 #include <ranges>
 
-#include <wrl/client.h>
-#include <dstorage.h>
-#include <initguid.h>
+#include <MinHook.h>
 
 #include "game/asset_pipeline.hpp"
 #include "runtime.hpp"
 #include "runtime_loader.hpp"
+
 #include "settings.hpp"
 #include "signature.hpp"
-
-DEFINE_GUID(IID_IDStorageQueue1, 0xdd2f482c, 0x5eff, 0x41e8, 0x9c, 0x9e, 0xd2, 0x37, 0x4b, 0x27, 0x81, 0x28);
-DEFINE_GUID(IID_IDStorageFactory, 0x6924ea0c, 0xc3cd, 0x4826, 0xb1, 0x0a, 0xf6, 0x4f, 0x4e, 0xd9, 0x27, 0xc1);
 
 namespace rivet_hook {
 	constexpr int64_t RIVET_SENTINEL = 0x7fffffff'ffffff00;
@@ -145,8 +141,6 @@ namespace rivet_hook {
 	bool *legacy_texture_loading = nullptr;
 	bool *disable_directstorage = nullptr;
 
-	Microsoft::WRL::ComPtr<IDStorageQueue1> dstorage_queue = nullptr;
-
 	auto
 	create_asset_id(AssetId *asset_id, const char *asset_name) -> AssetId * {
 		const auto result = game_create_asset_id(asset_id, asset_name);
@@ -195,19 +189,14 @@ namespace rivet_hook {
 
 	auto
 	hook_cohtml() -> void {
-		const HMODULE mod = GetModuleHandleA("cohtml.WindowsDesktop.dll");
-		if (!mod) {
-			g_output << "cannot hook cohtml, not loaded yet.\n";
+		LPVOID proc;
+		if (const auto status = MH_CreateHookApiEx(L"cohtml.WindowsDesktop.dll", decode_url_string_name, reinterpret_cast<LPVOID>(decode_url), reinterpret_cast<LPVOID *>(&game_decode_url), &proc);
+			status != MH_OK) {
+			g_output << "[cohtml] cannot hook cohtml: " << MH_StatusToString(status) << "\n";
 			return;
 		}
 
-		const auto proc = reinterpret_cast<LPVOID>(GetProcAddress(mod, decode_url_string_name));
-		if (!proc) {
-			g_output << "cannot hook cohtml, export not found.\n";
-			return;
-		}
-
-		create_hook("cohtml", proc, reinterpret_cast<LPVOID>(decode_url), reinterpret_cast<LPVOID *>(&game_decode_url));
+		MH_EnableHook(proc);
 	}
 
 	auto
@@ -898,11 +887,6 @@ namespace rivet_hook {
 
 				mod_list.clear();
 			}
-		}
-
-		if (dstorage_queue) {
-			dstorage_queue->Release();
-			dstorage_queue = nullptr;
 		}
 	}
 } // namespace rivet_hook
