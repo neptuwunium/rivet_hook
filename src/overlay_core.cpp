@@ -138,15 +138,13 @@ namespace rivet_hook {
 		ImGui::LabelText("Type", "0x%04x", actor->type);
 		ImGui::LabelText("Scene Index", "0x%08x", actor->sceneIndex);
 		ImGui::LabelText("Flags", "0x%08x", actor->flags);
+		ImGui::LabelText("Parent", "0x%08x", actor->parentHandle.value);
 		ImGui::BeginDisabled(!actor->parentHandle.IsValid());
-		if (ImGui::Button("Show")) {
+		if (ImGui::Button("Show Parent")) {
 			handle = actor->parentHandle;
 		}
 		ImGui::EndDisabled();
-		ImGui::SameLine();
-		ImGui::Text("Index 0x%04x ", actor->parentIndex);
-		ImGui::SameLine();
-		ImGui::LabelText("Parent", "0x%08x", actor->parentHandle.value);
+		ImGui::LabelText("Index", "0x%04x", actor->parentIndex);
 
 		ImGui::Text("%d Children", actor->childCount);
 		const auto width = ImGui::GetContentRegionAvail().x;
