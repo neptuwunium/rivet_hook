@@ -26,7 +26,6 @@
 namespace {
 	HMODULE g_renderdoc = nullptr;
 	bool g_minhook_initialized = false;
-	std::thread g_ddl_dump_thread;
 	bool has_exited = false;
 } // namespace
 
@@ -208,7 +207,8 @@ namespace rivet_hook {
 			g_output.open("./rivet.log");
 			g_output << "[rivet] init\n";
 			g_output << "[rivet] version " << RIVET_VERSION << "\n";
-			if (!atexit(fini)) {
+
+			if (atexit(fini)) {
 				g_output << "[rivet] atexit cannot be registered\n";
 			}
 
@@ -236,7 +236,7 @@ namespace rivet_hook {
 			Overlay::Init();
 			AssetLoader::init();
 			g_output << "[rivet] starting ddl thread\n";
-			g_ddl_dump_thread = std::thread(ddl::dump);
+			std::thread(ddl::dump).detach();
 
 			if (g_settings.renderdoc.enabled) {
 				g_output << "[rivet] loading renderdoc\n";
@@ -281,20 +281,21 @@ namespace rivet_hook {
 			has_exited = true;
 
 			g_output << "[rivet] fini\n";
+			g_output.flush();
+			g_settings.save();
 
 			if (g_renderdoc != nullptr) {
 				g_output << "[rivet] unloading renderdoc\n";
+				g_output.flush();
 				FreeLibrary(g_renderdoc);
 			}
 
+			g_output << "[rivet] Overlay fini\n";
+			g_output.flush();
 			Overlay::Fini();
+			g_output << "[rivet] AssetLoader fini\n";
+			g_output.flush();
 			AssetLoader::fini();
-
-			if (g_ddl_dump_thread.joinable()) {
-				g_ddl_dump_thread.join();
-			}
-
-			g_settings.save();
 
 			g_output << "[rivet] fini complete\n";
 			g_output.flush();

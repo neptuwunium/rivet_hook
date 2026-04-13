@@ -138,8 +138,8 @@ namespace rivet_hook {
 	reset() -> void {
 		if (imgui_initialized) {
 			imgui_initialized = false;
-			ImGui_ImplWin32_Shutdown();
 			ImGui_ImplDX12_Shutdown();
+			ImGui_ImplWin32_Shutdown();
 			ImGui::DestroyContext();
 		}
 
@@ -164,22 +164,27 @@ namespace rivet_hook {
 			g_pd3dCommandList->Release();
 			g_pd3dCommandList = nullptr;
 		}
+
 		if (g_pd3dRtvDescHeap) {
 			g_pd3dRtvDescHeap->Release();
 			g_pd3dRtvDescHeap = nullptr;
 		}
+
 		if (g_pd3dSrvDescHeap) {
 			g_pd3dSrvDescHeap->Release();
 			g_pd3dSrvDescHeap = nullptr;
 		}
+
 		if (g_fence) {
 			g_fence->Release();
 			g_fence = nullptr;
 		}
+
 		if (g_fenceEvent) {
 			CloseHandle(g_fenceEvent);
 			g_fenceEvent = nullptr;
 		}
+
 		g_fenceLastSignaledValue = 0;
 		g_frameIndex = 0;
 		g_frameCount = 0;

@@ -17,8 +17,6 @@
 namespace rivet_hook {
 	using namespace game;
 
-	std::thread g_OverlayInitThread;
-	std::thread g_OverlayFiniThread;
 	std::thread g_SpawnThread;
 	HANDLE g_SpawnSignal;
 
@@ -99,10 +97,11 @@ namespace rivet_hook {
 			return;
 		}
 
-		g_OverlayInitThread = std::thread(D3D12Init);
 		memset(debugSpawnActorPath, 0, sizeof(debugSpawnActorPath));
 		g_SpawnSignal = CreateEvent(nullptr, false, false, "Rivet Debug Spawn Signal");
 		g_SpawnThread = std::thread(SpawnDebugActor);
+
+		std::thread(D3D12Init).detach();
 	}
 
 	auto
@@ -112,6 +111,6 @@ namespace rivet_hook {
 		}
 
 		CloseHandle(g_SpawnSignal);
-		g_OverlayFiniThread = std::thread(D3D12Fini);
+		D3D12Fini();
 	}
 } // namespace rivet_hook
