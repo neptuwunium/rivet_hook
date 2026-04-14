@@ -46,15 +46,15 @@ namespace rivet_hook {
 	std::mutex address_cache_mutex;
 
 	auto
-	find_addresses(const std::string &name, const HMODULE game, const hex_signature &signature) -> std::vector<intptr_t> {
+	find_addresses(const hex_signature &signature) -> std::vector<intptr_t> {
 		std::vector<intptr_t> pointers;
 		{
 			std::lock_guard guard(address_cache_mutex);
 			if (!g_settings.address_cache.addresses.contains(signature.hash)) {
 				if (g_settings.log.pointers) {
-					g_output << "[rivet] searching for " << name << " pointers\n";
+					g_output << "[rivet] searching for " << signature.name << " pointers\n";
 				}
-				pointers = scan(game, signature);
+				pointers = scan(g_game_module, signature);
 				g_settings.address_cache.addresses.emplace(signature.hash, pointers);
 			} else {
 				pointers = g_settings.address_cache.addresses[signature.hash];
@@ -62,34 +62,34 @@ namespace rivet_hook {
 		}
 
 		if (pointers.empty()) {
-			g_output << "[rivet] could not find " << name << " pointer, aborting\n";
+			g_output << "[rivet] could not find " << signature.name << " pointer, aborting\n";
 			return {};
 		}
 
 		if (g_settings.log.pointers) {
-			g_output << "[rivet] found " << pointers.size() << " " << name << " pointers" << std::dec << "\n";
+			g_output << "[rivet] found " << pointers.size() << " " << signature.name << " pointers" << std::dec << "\n";
 		}
 
 		return pointers;
 	}
 
 	auto
-	find_address(const std::string &name, const HMODULE game, const hex_signature &signature, const size_t limit, const int select) -> intptr_t {
-		const auto pointers = find_addresses(name, game, signature);
+	find_address(const hex_signature &signature, const size_t limit, const int select) -> intptr_t {
+		const auto pointers = find_addresses(signature);
 
 		if (pointers.empty()) {
 			return 0;
 		}
 
 		if (pointers.size() > limit) {
-			g_output << "[rivet] found " << pointers.size() << " " << name << " pointers, too many. aborting\n";
+			g_output << "[rivet] found " << pointers.size() << " " << signature.name << " pointers, too many. aborting\n";
 			return 0;
 		}
 
 		const auto pointer = pointers[select];
 
 		if (g_settings.log.pointers) {
-			g_output << "[rivet] found " << name << " pointer at " << std::hex << pointer << std::dec << "\n";
+			g_output << "[rivet] found " << signature.name << " pointer at " << std::hex << pointer << std::dec << "\n";
 		}
 
 		return pointer;
@@ -107,7 +107,7 @@ namespace rivet_hook {
 	}
 
 	auto
-	create_hook(const std::string &name, const LPVOID pointer, const LPVOID detour, LPVOID *original) -> void {
+	create_hook(const std::string_view &name, const LPVOID pointer, const LPVOID detour, LPVOID *original) -> void {
 		if (!g_minhook_initialized) {
 			if (MH_Initialize() != MH_OK) {
 				g_output << "[rivet] failed to initialize minhook\n";
@@ -132,13 +132,13 @@ namespace rivet_hook {
 	}
 
 	auto
-	create_hook(const std::string &name, const HMODULE game, const hex_signature &signature, const LPVOID detour, LPVOID *original, const size_t limit, const int select) -> void {
-		const auto pointer = find_address(name, game, signature, limit, select);
+	create_hook(const hex_signature &signature, const LPVOID detour, LPVOID *original, const size_t limit, const int select) -> void {
+		const auto pointer = find_address(signature, limit, select);
 		if (pointer == 0) {
 			return;
 		}
 
-		create_hook(name, reinterpret_cast<LPVOID>(pointer), detour, original);
+		create_hook(signature.name, reinterpret_cast<LPVOID>(pointer), detour, original);
 	}
 
 	auto
@@ -224,13 +224,13 @@ namespace rivet_hook {
 			g_settings = Settings::load();
 			g_settings.save();
 
-			create_hook("engine init", g_game_module, ENGINE_INIT_SIGNATURE, reinterpret_cast<LPVOID>(&engine_init), reinterpret_cast<LPVOID*>(&game_engine_init));
+			create_hook(ENGINE_INIT_SIGNATURE, reinterpret_cast<LPVOID>(&engine_init), reinterpret_cast<LPVOID *>(&game_engine_init));
 
 			if (g_settings.utility.suppress_crash_handler) {
-				const auto nxe_vtable = load_rel_var(find_address("nxexception", g_game_module, REL_NXEXCEPTION_VTABLE_SIGNATURE), NXEXCEPTION_VTABLE_ADDRESS);
+				const auto nxe_vtable = load_rel_var(find_address(REL_NXEXCEPTION_VTABLE_SIGNATURE), NXEXCEPTION_VTABLE_ADDRESS);
 				const auto crash_handler = static_cast<void**>(nxe_vtable)[NXEXCEPTION_VTABLE_INIT];
 
-				create_hook("crash handler", crash_handler, reinterpret_cast<LPVOID>(&null_func), nullptr);
+				create_hook("CRASH_HANDLER", crash_handler, reinterpret_cast<LPVOID>(&null_func), nullptr);
 			}
 
 			Overlay::Init();
@@ -258,15 +258,15 @@ namespace rivet_hook {
 			}
 
 			if (g_settings.utility.attach_context_log) {
-				create_hook("context log", g_game_module, CONTEXT_LOG_SIGNATURE, reinterpret_cast<LPVOID>(&context_log), reinterpret_cast<LPVOID *>(&game_context_log));
+				create_hook(CONTEXT_LOG_SIGNATURE, reinterpret_cast<LPVOID>(&context_log), reinterpret_cast<LPVOID *>(&game_context_log));
 			}
 
 			if (g_settings.utility.attach_log) {
-				create_hook("log", g_game_module, LOG_SIGNATURE, reinterpret_cast<LPVOID>(&log), nullptr);
+				create_hook(LOG_SIGNATURE, reinterpret_cast<LPVOID>(&log), nullptr);
 			}
 
 			if (g_settings.utility.unpause_focus) {
-				create_hook("force focus",  g_game_module, UNPAUSE_FOCUS_SIGNATURE, reinterpret_cast<LPVOID>(&return_true), nullptr);
+				create_hook(UNPAUSE_FOCUS_SIGNATURE, reinterpret_cast<LPVOID>(&return_true), nullptr);
 			}
 
 			g_output << "[rivet] init complete\n";

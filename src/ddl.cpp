@@ -170,8 +170,8 @@ namespace rivet_hook::ddl {
 		g_output << "[rivet] dumping DDL structures\n";
 		using namespace std::chrono_literals;
 
-		const auto hm_pointer = find_address("ddl hash map", g_game_module, DDL_HASH_MAP_SIGNATURE);
-		const auto tl_pointer = find_address("ddl type list", g_game_module, DDL_TYPE_LIST_SIGNATURE);
+		const auto hm_pointer = find_address(DDL_HASH_MAP_SIGNATURE);
+		const auto tl_pointer = find_address(DDL_TYPE_LIST_SIGNATURE);
 
 		if (hm_pointer == 0 || tl_pointer == 0) {
 			return;
@@ -368,8 +368,8 @@ namespace rivet_hook::ddl {
 		using version_str_t = const char *(*) (uint32_t index);
 		using version_hash_t = uint32_t (*)(uint32_t index);
 
-		auto function_ptr = find_address("version name function", g_game_module, VERSION_SIGNATURE);
-		auto hash_function_ptr = find_address("version hash function", g_game_module, VERSION_HASH_SIGNATURE);
+		auto function_ptr = find_address(VERSION_SIGNATURE);
+		auto hash_function_ptr = find_address(VERSION_HASH_SIGNATURE);
 
 		if (function_ptr == 0 || hash_function_ptr == 0) {
 			return;
@@ -410,8 +410,8 @@ namespace rivet_hook::ddl {
 	dump_components() -> void {
 		g_output << "[rivet] dumping components\n";
 
-		auto component_registry = load_rel_var(find_address("component registry", g_game_module, COMPONENT_REGISTER_SIGNATURE), COMPONENT_REGISTRY_ADDRESS);
-		auto component_count = load_rel_var(find_address("component count", g_game_module, COMPONENT_REGISTER_SIGNATURE), COMPONENT_COUNT_ADDRESS);
+		auto component_registry = load_rel_var(find_address(COMPONENT_REGISTER_SIGNATURE), COMPONENT_REGISTRY_ADDRESS);
+		auto component_count = load_rel_var(find_address(COMPONENT_REGISTER_SIGNATURE), COMPONENT_COUNT_ADDRESS);
 
 		if (component_registry == nullptr || component_count == nullptr) {
 			return;

@@ -26,16 +26,16 @@ namespace rivet_hook {
 	load_rel_var(intptr_t ptr, int rel_address) -> void *;
 
 	auto
-	find_addresses(const std::string &name, HMODULE game, const hex_signature &signature) -> std::vector<intptr_t>;
+	find_addresses(const hex_signature &signature) -> std::vector<intptr_t>;
 
 	auto
-	find_address(const std::string &name, HMODULE game, const hex_signature &signature, size_t limit = 1, int select = 0) -> intptr_t;
+	find_address(const hex_signature &signature, size_t limit = 1, int select = 0) -> intptr_t;
 
 	auto
-	create_hook(const std::string &name, LPVOID pointer, LPVOID detour, LPVOID *original) -> void;
+	create_hook(const std::string_view &name, LPVOID pointer, LPVOID detour, LPVOID *original) -> void;
 
 	auto
-	create_hook(const std::string &name, HMODULE game, const hex_signature &signature, LPVOID detour, LPVOID *original, size_t limit = 1, int select = 0) -> void;
+	create_hook(const hex_signature &signature, LPVOID detour, LPVOID *original, size_t limit = 1, int select = 0) -> void;
 
 	namespace runtime {
 		auto

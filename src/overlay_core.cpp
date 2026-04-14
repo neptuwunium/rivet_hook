@@ -322,12 +322,12 @@ namespace rivet_hook {
 		g_SpawnSignal = CreateEvent(nullptr, false, false, "Rivet Debug Spawn Signal");
 		g_SpawnThread = std::thread(SpawnDebugActor);
 
-		load_rel_var(find_address("hero system", g_game_module, HERO_SYSTEM_SIGNATURE), HERO_SYSTEM_ADDRESS);
-		load_rel_var(find_address("scene manager", g_game_module, SCENE_MANAGER_SIGNATURE), SCENE_MANAGER_ADDRESS);
-		load_rel_var(find_address("actor asset manager", g_game_module, ACTOR_ASSET_MANAGER_SIGNATURE), ACTOR_ASSET_MANAGER_ADDRESS);
+		load_rel_var(find_address(HERO_SYSTEM_SIGNATURE), HERO_SYSTEM_ADDRESS);
+		load_rel_var(find_address(SCENE_MANAGER_SIGNATURE), SCENE_MANAGER_ADDRESS);
+		load_rel_var(find_address(ACTOR_ASSET_MANAGER_SIGNATURE), ACTOR_ASSET_MANAGER_ADDRESS);
 
-		game_SpawnBot = reinterpret_cast<SpawnBot_t>(find_address("spawn bot", g_game_module, SPAWN_BOT_SIGNATURE));
-		game_LoadActorAsset = reinterpret_cast<LoadActorAsset_t>(find_address("load actor asset", g_game_module, LOAD_ACTOR_ASSET_SIGNATURE));
+		game_SpawnBot = reinterpret_cast<SpawnBot_t>(find_address(SPAWN_BOT_SIGNATURE));
+		game_LoadActorAsset = reinterpret_cast<LoadActorAsset_t>(find_address(LOAD_ACTOR_ASSET_SIGNATURE));
 
 		std::thread(D3D12Init).detach();
 	}
