@@ -13,7 +13,7 @@ namespace rivet_hook::game {
 
 	struct SceneComponent {
 		Component* component;
-		int32_t type;
+		uint32_t type;
 		int32_t index;
 	};
 
@@ -35,7 +35,7 @@ namespace rivet_hook::game {
 
 		__forceinline auto
 		ResolveComponent(const EngineHandle handle) const -> Component* {
-			if (handle.id > componentCount) {
+			if (static_cast<int32_t>(handle.id) > componentCount) {
 				return nullptr;
 			}
 
@@ -49,7 +49,7 @@ namespace rivet_hook::game {
 
 		__forceinline auto
 		ResolveActor(const EngineHandle handle) const -> Actor* {
-			if (handle.id > actorCount) {
+			if (static_cast<int32_t>(handle.id) > actorCount) {
 				return nullptr;
 			}
 
@@ -63,7 +63,7 @@ namespace rivet_hook::game {
 
 		__forceinline auto
 		ResolveActorGroup(const EngineHandle handle) const -> ActorGroup* {
-			if (handle.id > actorGroupCount) {
+			if (static_cast<int32_t>(handle.id) > actorGroupCount) {
 				return nullptr;
 			}
 

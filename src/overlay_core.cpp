@@ -4,10 +4,12 @@
 
 #include "imgui_internal.h"
 
+#include <cstdio>
 #include <thread>
+#include <format>
+#include <mutex>
 
 #include <imgui.h>
-#include <imgui_stdlib.h>
 
 #include "game/hero_manager.hpp"
 #include "game/scene_manager.hpp"
@@ -15,9 +17,6 @@
 #include "runtime.hpp"
 #include "signature.hpp"
 #include "signature_engine.hpp"
-
-#include <format>
-#include <mutex>
 
 namespace rivet_hook {
 	using namespace game;
@@ -52,7 +51,7 @@ namespace rivet_hook {
 				}
 
 				isSpawningDebugActor = true;
-				game_SpawnBot(0, debugSpawnActor);
+				game_SpawnBot(nullptr, debugSpawnActor);
 				isSpawningDebugActor = false;
 			}
 		}
@@ -164,7 +163,7 @@ namespace rivet_hook {
 
 				const char *name = child->GetName();
 				if (!name || !*name) {
-					std::sprintf(labelSwap, "Actor %08x##DrawActorInfo", handle.value);
+					sprintf_s(labelSwap, "Actor %08x##DrawActorInfo", handle.value);
 					name = labelSwap;
 				}
 
@@ -214,7 +213,7 @@ namespace rivet_hook {
 				if (const auto *actorGroup = &g_SceneManager->actorGroups[index]; actorGroup->handles != nullptr && actorGroup->count > 0) {
 					const char *name = actorGroup->name;
 					if (!name || !*name) {
-						std::sprintf(labelSwap, "ActorGroup %08x##DrawActorGroups", index);
+						sprintf_s(labelSwap, "ActorGroup %08x##DrawActorGroups", index);
 						name = labelSwap;
 					}
 
@@ -238,7 +237,7 @@ namespace rivet_hook {
 					if (const auto actor = g_SceneManager->ResolveActor(handle); actor != nullptr) {
 						const char *name = actor->GetName();
 						if (!name || !*name) {
-							std::sprintf(labelSwap, "Actor %08x##DrawActorGroups", handle.value);
+							sprintf_s(labelSwap, "Actor %08x##DrawActorGroups", handle.value);
 							name = labelSwap;
 						}
 

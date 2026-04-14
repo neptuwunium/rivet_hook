@@ -1,4 +1,4 @@
-LIBRARY rivet_hook
+LIBRARY hid
 EXPORTS
 	HidD_FlushQueue=PROXY_HidD_FlushQueue @1
 	HidD_FreePreparsedData=PROXY_HidD_FreePreparsedData @2

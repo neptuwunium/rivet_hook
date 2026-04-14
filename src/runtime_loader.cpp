@@ -95,10 +95,10 @@ namespace rivet_hook {
 		0x98aa90ad5ea29cf5,
 	};
 
-	std::array<std::string_view, static_cast<int32_t>(AssetLanguage::Count)> rivet_lang_prefix = {
+	std::array<std::string_view, static_cast<int32_t>(AssetLanguage::Count)> rivet_lang_prefix = {{
 		"none", "us", "gb", "dk", "nl", "fi", "fr", "de", "it", "jp", "kr", "no", "pl", "pt", "ru", "es",
 		"se", "br", "ar", "tr", "la", "cs", "ct", "fc", "cz", "hu", "el", "ro", "th", "vi", "id", "hr",
-	};
+	}};
 
 	std::array<std::string_view, static_cast<int32_t>(AssetType::Count)> rivet_exts = {
 		"",

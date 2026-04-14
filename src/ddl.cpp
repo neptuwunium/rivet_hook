@@ -379,7 +379,7 @@ namespace rivet_hook::ddl {
 		auto func1 = reinterpret_cast<version_str_t>(function_ptr);
 		auto func2 = reinterpret_cast<version_hash_t>(hash_function_ptr);
 
-		int32_t index = 0;
+		uint32_t index = 0;
 		nlohmann::json versions = nlohmann::json::array_t();
 		while (true) {
 			auto version_str = func1(index++);
