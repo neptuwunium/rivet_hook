@@ -9,6 +9,8 @@
 #include "signature_types.hpp"
 
 namespace rivet_hook {
+	constexpr uint32_t REL_ADDRESS_SIZE = 0x4;
+
 	// ddl
 	MAKE_SIGNATURE(DDL_HASH_MAP, "0f 57 c0 48 8d ?? ?? ?? ?? ?? 0f 11 05 ?? ?? ?? ?? 0f 11 05 ?? ?? ?? ?? 0f 11 05")
 	MAKE_SIGNATURE(DDL_TYPE_LIST, "48 8d ?? ?? ?? ?? ?? 66 89 41 14 8b ?? ?? ?? ?? ?? 48 89 ?? ?? ff c0 89 ?? ?? ?? ?? ?? c3")
@@ -16,6 +18,12 @@ namespace rivet_hook {
 	MAKE_SIGNATURE(VERSION_HASH, "48 0F BE C1 48 8D 0D ?? ?? ?? ?? 8B 04 81 C3")
 	MAKE_SIGNATURE(COMPONENT_REGISTER, "48 89 81 ?? ?? ?? ?? FF 05")
 	MAKE_SIGNATURE(ENGINE_INIT, "48 83 EC 28 E8 ?? ?? ?? ?? 84 C0 75 ?? 48 83 C4 28")
+
+	constexpr uint32_t DDL_HASH_MAP_ADDRESS = 0x6;
+	constexpr uint32_t DDL_TYPE_LIST_ADDRESS = 0x3;
+	constexpr uint32_t DDL_TYPE_LIST_COUNT_ADDRESS = 0xD;
+	constexpr uint32_t COMPONENT_COUNT_ADDRESS = 0x9;
+	constexpr uint32_t COMPONENT_REGISTRY_ADDRESS = 0x10;
 
 	// logging
 	MAKE_SIGNATURE(CONTEXT_LOG, "65 48 8b 04 25 58 00 00 00 48 85 c9 44 8b 05")
@@ -25,6 +33,9 @@ namespace rivet_hook {
 	// util
 	MAKE_SIGNATURE(REL_NXEXCEPTION_VTABLE, "48 8D 05 ?? ?? ?? ?? 48 8B F1 48 89 01 8B FA 48 8B 89")
 	MAKE_SIGNATURE(UNPAUSE_FOCUS, "48 83 EC 28 8B 41 ?? 85 C0 74")
+
+	constexpr uint32_t NXEXCEPTION_VTABLE_ADDRESS = 0x3;
+	constexpr uint32_t NXEXCEPTION_VTABLE_INIT = 0x1;
 
 	// note: find signatures for MSMM, MSMR1, MSM2
 	// unhooked asset funcs but called
@@ -45,24 +56,6 @@ namespace rivet_hook {
 	MAKE_SIGNATURE(LEGACY_TEXTURE, "0F B6 05 ?? ?? ?? ?? 48 8D 15 ?? ?? ?? ?? 88 83")
 	MAKE_SIGNATURE(ARCHIVEFS_VTABLE, "48 8D 05 ?? ?? ?? ?? 48 8D 4F ?? 48 89 07 48 89 5F")
 
-	// hooked asset funcs
-	MAKE_SIGNATURE(REL_SET_TEXT_AUDIO_LANGUAGE, "E8 ?? ?? ?? ?? 8B 0D ?? ?? ?? ?? E8 ?? ?? ?? ?? 0F B6 0D ?? ?? ?? ?? E8")
-	MAKE_SIGNATURE(PRELOAD_LOAD_OP_RCRA, "48 8B C4 44 89 48 ?? 48 89 48 ?? 53 41 55")
-	MAKE_SIGNATURE(IS_ASSET_VALID_RCRA, "48 89 5C 24 ?? 48 89 6C 24 ?? 48 89 74 24 ?? 57 48 83 EC 20 48 8B DA 48 8B F9 E8 ?? ?? ?? ?? 8B F0")
-	MAKE_SIGNATURE(IS_INSTALLED_ASSET, "48 89 5C 24 ?? 48 89 6C 24 ?? 48 89 74 24 ?? 48 89 7C 24 ?? 41 56 48 83 EC 20 48 8B DA 48 8B F1")
-	MAKE_SIGNATURE(WINDOW_INIT_RCRA, "48 89 5C 24 ?? 48 89 74 24 ?? 57 48 83 EC 30 C7 44 24 ?? 00 00 80 41")
-
-	constexpr uint32_t REL_ADDRESS_SIZE = 0x4;
-
-	constexpr uint32_t DDL_HASH_MAP_ADDRESS = 0x6;
-	constexpr uint32_t DDL_TYPE_LIST_ADDRESS = 0x3;
-	constexpr uint32_t DDL_TYPE_LIST_COUNT_ADDRESS = 0xD;
-	constexpr uint32_t COMPONENT_COUNT_ADDRESS = 0x9;
-	constexpr uint32_t COMPONENT_REGISTRY_ADDRESS = 0x10;
-
-	constexpr uint32_t NXEXCEPTION_VTABLE_ADDRESS = 0x3;
-	constexpr uint32_t NXEXCEPTION_VTABLE_INIT = 0x1;
-
 	constexpr uint32_t LOAD_OPS_ADDRESS = 0x3;
 	constexpr uint32_t CREATE_ASSET_RCRA_ADDRESS = 0x2;
 	constexpr uint32_t CREATE_ASSET_DATA_RCRA_ADDRESS = 0x3;
@@ -76,6 +69,24 @@ namespace rivet_hook {
 	constexpr uint32_t ARCHIVEFS_VTABLE_RESOLVEHANDLE = 0xA;
 	constexpr uint32_t ARCHIVEFS_VTABLE_MOUNT = 0x10;
 
+	// hooked asset funcs
+	MAKE_SIGNATURE(REL_SET_TEXT_AUDIO_LANGUAGE, "E8 ?? ?? ?? ?? 8B 0D ?? ?? ?? ?? E8 ?? ?? ?? ?? 0F B6 0D ?? ?? ?? ?? E8")
+	MAKE_SIGNATURE(PRELOAD_LOAD_OP_RCRA, "48 8B C4 44 89 48 ?? 48 89 48 ?? 53 41 55")
+	MAKE_SIGNATURE(IS_ASSET_VALID_RCRA, "48 89 5C 24 ?? 48 89 6C 24 ?? 48 89 74 24 ?? 57 48 83 EC 20 48 8B DA 48 8B F9 E8 ?? ?? ?? ?? 8B F0")
+	MAKE_SIGNATURE(IS_INSTALLED_ASSET, "48 89 5C 24 ?? 48 89 6C 24 ?? 48 89 74 24 ?? 48 89 7C 24 ?? 41 56 48 83 EC 20 48 8B DA 48 8B F1")
+	MAKE_SIGNATURE(WINDOW_INIT_RCRA, "48 89 5C 24 ?? 48 89 74 24 ?? 57 48 83 EC 30 C7 44 24 ?? 00 00 80 41")
+
 	constexpr uint32_t REL_SET_TEXT_LANGUAGE_ADDRESS = 0x1;
 	constexpr uint32_t REL_SET_AUDIO_LANGUAGE_ADDRESS = 0xC;
+
+	// actor overlay stuff
+	MAKE_SIGNATURE(HERO_SYSTEM, "48 8D 0D ?? ?? ?? ?? E8 ?? ?? ?? ?? 33 FF 40 38 B8")
+	MAKE_SIGNATURE(SCENE_MANAGER, "48 8D 0D ?? ?? ?? ?? E8 ?? ?? ?? ?? 48 63 75")
+	MAKE_SIGNATURE(ACTOR_ASSET_MANAGER, "48 8D 0D ?? ?? ?? ?? 48 8B 52 ?? E8 ?? ?? ?? ?? 48 8B D8")
+	MAKE_SIGNATURE(SPAWN_BOT, "48 85 D2 0F 84 ?? ?? ?? ?? 48 8B C4 48 89 58 ?? 48 89 70 ?? 48 89 78")
+	MAKE_SIGNATURE(LOAD_ACTOR_ASSET, "48 89 5C 24 ?? 48 89 6C 24 ?? 48 89 74 24 ?? 57 48 83 EC 30 49 8B F9 49 8B F0 48 8B DA")
+
+	constexpr uint32_t HERO_SYSTEM_ADDRESS = 0x3;
+	constexpr uint32_t SCENE_MANAGER_ADDRESS = 0x3;
+	constexpr uint32_t ACTOR_ASSET_MANAGER_ADDRESS = 0x3;
 } // namespace rivet_hook

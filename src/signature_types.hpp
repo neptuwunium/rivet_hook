@@ -7,6 +7,7 @@
 #include <array>
 #include <cstdint>
 #include <string_view>
+#include <stdexcept>
 
 namespace rivet_hook {
 	struct signature_byte {
@@ -20,8 +21,10 @@ namespace rivet_hook {
 	};
 
 	struct hex_signature {
-		std::array<signature_byte, 128> signature; // signature to match
+		std::string_view name;  		           // name of the signature
 		uint32_t size { 0 };					   // size of the signature
+		uint64_t hash { 0 };					   // hash of the signature
+		std::array<signature_byte, 48> signature; // signature to match
 	};
 
 	constexpr auto
@@ -40,9 +43,15 @@ namespace rivet_hook {
 	}
 
 	constexpr auto
-	parse_signature(const std::string_view &hex_string) -> hex_signature {
-		hex_signature signature;
+	parse_signature(const std::string_view name, const std::string_view hex_string) -> hex_signature {
+		hex_signature signature {};
+		signature.name = name;
+		signature.hash = 0xcbf29ce484222325;
+
 		for (size_t index = 0; index < hex_string.size(); index += 2) {
+			signature.hash ^= hex_string[index];
+			signature.hash *= 0x00000100000001b3;
+
 			if (hex_string[index] == ' ') { // if the value is a space
 				index -= 1;
 				continue;
@@ -53,11 +62,15 @@ namespace rivet_hook {
 			} else { // if the value is a hex value
 				signature.signature[signature.size++].value = parse_octet(hex_string[index]) << 4 | parse_octet(hex_string[index + 1]);
 			}
+
+			if (signature.size > signature.signature.max_size()) {
+				throw std::runtime_error("signature size exceeded");
+			}
 		}
 
 		return signature;
 	}
 
-#define MAKE_SIGNATURE(codename, signature) const hex_signature constexpr codename##_SIGNATURE = parse_signature(signature);
+#define MAKE_SIGNATURE(codename, signature) const hex_signature constexpr codename##_SIGNATURE = parse_signature(#codename, signature);
 
 } // namespace rivet_hook

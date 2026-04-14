@@ -59,7 +59,7 @@ namespace rivet_hook {
 			return false;
 		}
 
-		if (const auto fingerprint = std::format("{}:{}#{}", headers->OptionalHeader.AddressOfEntryPoint, headers->OptionalHeader.SizeOfImage, headers->FileHeader.TimeDateStamp);
+		if (const auto fingerprint = std::format("{}:{}#{}?2", headers->OptionalHeader.AddressOfEntryPoint, headers->OptionalHeader.SizeOfImage, headers->FileHeader.TimeDateStamp);
 			settings.address_cache.fingerprint.empty() || fingerprint != settings.address_cache.fingerprint) {
 			g_output << "[rivet] game version mismatch, invalidating pointers\n";
 			settings.address_cache.fingerprint = fingerprint;
@@ -118,8 +118,13 @@ namespace rivet_hook {
 								continue;
 							}
 
-							std::string key = original_key;
-							std::ranges::replace(key, '_', ' ');
+							uint64_t key;
+							try {
+								key = std::stoull(original_key, nullptr, 16);
+							} catch (...) {
+								continue;
+							}
+
 							settings.address_cache.addresses[key] = {};
 
 							for (auto &value : values.as_array()) {
@@ -195,9 +200,7 @@ namespace rivet_hook {
 			for (const auto value : values) {
 				arr.emplace_back(value - reinterpret_cast<intptr_t>(g_game_module));
 			}
-			std::string key = original_key;
-			std::ranges::replace(key, ' ', '_');
-			tbl["address_cache"][key] = arr;
+			tbl["address_cache"][std::format("{:x}", original_key)] = arr;
 		}
 
 		if (std::ofstream file(settings_name, std::ios::trunc); file.is_open()) {

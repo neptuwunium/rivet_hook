@@ -50,14 +50,14 @@ namespace rivet_hook {
 		std::vector<intptr_t> pointers;
 		{
 			std::lock_guard guard(address_cache_mutex);
-			if (!g_settings.address_cache.addresses.contains(name)) {
+			if (!g_settings.address_cache.addresses.contains(signature.hash)) {
 				if (g_settings.log.pointers) {
 					g_output << "[rivet] searching for " << name << " pointers\n";
 				}
 				pointers = scan(game, signature);
-				g_settings.address_cache.addresses.emplace(name, pointers);
+				g_settings.address_cache.addresses.emplace(signature.hash, pointers);
 			} else {
-				pointers = g_settings.address_cache.addresses[name];
+				pointers = g_settings.address_cache.addresses[signature.hash];
 			}
 		}
 

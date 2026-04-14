@@ -13,6 +13,8 @@
 #include "game/scene_manager.hpp"
 #include "overlay.hpp"
 #include "runtime.hpp"
+#include "signature.hpp"
+#include "signature_engine.hpp"
 
 #include <format>
 #include <mutex>
@@ -23,15 +25,15 @@ namespace rivet_hook {
 	std::thread g_SpawnThread;
 	HANDLE g_SpawnSignal;
 
-	auto g_HeroManager = reinterpret_cast<HeroSystem *>(0x146007f60);
-	auto g_SceneManager = reinterpret_cast<SceneManager *>(0x14674b740);
-	constexpr intptr_t ACTOR_ASSET_MANAGER = 0x1452e0b80;
+	HeroSystem *g_HeroManager = nullptr;
+	SceneManager *g_SceneManager = nullptr;
+	AssetManager *g_ActorAssetManager = nullptr;
 
-	using SpawnBot_t = void (*)(intptr_t self, Asset *actorAsset);
-	using LoadActorAsset_t = Asset * (*)(intptr_t self, const char* name, Asset* loadedFrom, char const* loadInfo);
+	using SpawnBot_t = void (*)(AssetManager *self, Asset *actorAsset);
+	using LoadActorAsset_t = Asset * (*)(AssetManager *self, const char* name, Asset* loadedFrom, char const* loadInfo);
 
-	const auto game_SpawnBot = reinterpret_cast<SpawnBot_t>(0x1403b3450);
-	const auto game_LoadActorAsset = reinterpret_cast<LoadActorAsset_t>(0x140f17f00);
+	SpawnBot_t game_SpawnBot = nullptr;
+	LoadActorAsset_t game_LoadActorAsset = nullptr;
 
 	char debugSpawnActorPath[0x200];
 	Asset *debugSpawnActor = nullptr;
@@ -74,7 +76,7 @@ namespace rivet_hook {
 
 		ImGui::BeginDisabled(isDebugActorLoading);
 		if (ImGui::Button("Load")) {
-			debugSpawnActor = game_LoadActorAsset(ACTOR_ASSET_MANAGER, debugSpawnActorPath, debugSpawnActor, nullptr);
+			debugSpawnActor = game_LoadActorAsset(g_ActorAssetManager, debugSpawnActorPath, debugSpawnActor, nullptr);
 		}
 		ImGui::EndDisabled();
 
@@ -266,19 +268,24 @@ namespace rivet_hook {
 	}
 
 	static auto
+	CheckSpawnBot() -> bool {
+		return g_ActorAssetManager != nullptr && game_SpawnBot != nullptr && game_LoadActorAsset != nullptr;
+	}
+
+	static auto
 	CheckActorGroups() -> bool {
 		return g_SceneManager != nullptr && g_SceneManager->actorGroups != nullptr && g_SceneManager->actorGroupCount > 0;
 	}
 
 	static auto
 	CheckHeroSystem() -> bool {
-		return g_SceneManager != nullptr && g_SceneManager->actors != nullptr && g_HeroManager != nullptr;
+		return g_SceneManager != nullptr && g_SceneManager->actors != nullptr && g_HeroManager != nullptr && false;
 	}
 
 	using RivetImGuiCallback = void(*)();
 	using RivetImGuiCheckCallback = bool(*)();
 	static std::array<std::tuple<RivetImGuiCallback, RivetImGuiCheckCallback, const char*>, 3> tabs {{
-		{ DrawDebugSpawn, nullptr, "Spawn Actor" },
+		{ DrawDebugSpawn, CheckSpawnBot, "Spawn Actor" },
 		{ DrawActorGroups, CheckActorGroups, "Actor Groups" },
 		{ DrawHeroSystem, CheckHeroSystem, "Hero System" },
 	}};
@@ -314,6 +321,13 @@ namespace rivet_hook {
 		memset(debugSpawnActorPath, 0, sizeof(debugSpawnActorPath));
 		g_SpawnSignal = CreateEvent(nullptr, false, false, "Rivet Debug Spawn Signal");
 		g_SpawnThread = std::thread(SpawnDebugActor);
+
+		load_rel_var(find_address("hero system", g_game_module, HERO_SYSTEM_SIGNATURE), HERO_SYSTEM_ADDRESS);
+		load_rel_var(find_address("scene manager", g_game_module, SCENE_MANAGER_SIGNATURE), SCENE_MANAGER_ADDRESS);
+		load_rel_var(find_address("actor asset manager", g_game_module, ACTOR_ASSET_MANAGER_SIGNATURE), ACTOR_ASSET_MANAGER_ADDRESS);
+
+		game_SpawnBot = reinterpret_cast<SpawnBot_t>(find_address("spawn bot", g_game_module, SPAWN_BOT_SIGNATURE));
+		game_LoadActorAsset = reinterpret_cast<LoadActorAsset_t>(find_address("load actor asset", g_game_module, LOAD_ACTOR_ASSET_SIGNATURE));
 
 		std::thread(D3D12Init).detach();
 	}

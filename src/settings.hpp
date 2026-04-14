@@ -11,6 +11,8 @@
 #define WIN32_LEAN_AND_MEAN
 #include "windows.h"
 
+#include <cstdint>
+
 namespace rivet_hook {
 	constexpr static auto settings_name = R"(.\rivet.toml)";
 
@@ -60,7 +62,7 @@ namespace rivet_hook {
 
 		struct AddressCache {
 			std::string fingerprint;
-			std::map<std::string, std::vector<intptr_t>> addresses;
+			std::map<uint64_t, std::vector<intptr_t>> addresses;
 		} address_cache;
 
 		static auto

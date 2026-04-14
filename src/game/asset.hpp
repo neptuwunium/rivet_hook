@@ -120,7 +120,6 @@ namespace rivet_hook::game {
 		__forceinline auto
 		GetShortName() const -> const char * {
 			if (name && *name) {
-				g_output << name << "short name length " << nameOffset << " " << unknown4[0] << " " << unknown4[1] << " " << unknown4[2] << "\n";
 				if (nameOffset > 1) {
 					return name + nameOffset;
 				}
@@ -160,6 +159,10 @@ namespace rivet_hook::game {
 	offset_assert(TextureAsset, maxLOD, 0x3c);
 	offset_assert(TextureAsset, resource, 0x40);
 	offset_assert(TextureAsset, resourceSize, 0xc5);
+
+	struct AssetManager {
+		void* vtable;
+	};
 
 #pragma pack(pop)
 } // namespace rivet_hook::game
