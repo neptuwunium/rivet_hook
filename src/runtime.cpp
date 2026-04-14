@@ -9,6 +9,7 @@
 #include <ostream>
 #include <thread>
 #include <filesystem>
+#include <mutex>
 
 #include "ddl.hpp"
 #include "overlay.hpp"
@@ -50,14 +51,15 @@ namespace rivet_hook {
 		std::vector<intptr_t> pointers;
 		{
 			std::lock_guard guard(address_cache_mutex);
-			if (!g_settings.address_cache.addresses.contains(signature.hash)) {
+
+			if (const auto cacheKey = std::format("{}_{:016X}", signature.name, signature.hash); !g_settings.address_cache.addresses.contains(cacheKey)) {
 				if (g_settings.log.pointers) {
 					g_output << "[rivet] searching for " << signature.name << " pointers\n";
 				}
 				pointers = scan(g_game_module, signature);
-				g_settings.address_cache.addresses.emplace(signature.hash, pointers);
+				g_settings.address_cache.addresses.emplace(cacheKey, pointers);
 			} else {
-				pointers = g_settings.address_cache.addresses[signature.hash];
+				pointers = g_settings.address_cache.addresses[cacheKey];
 			}
 		}
 
@@ -106,8 +108,9 @@ namespace rivet_hook {
 		return rip + target;
 	}
 
+	// ReSharper disable twice CppParameterMayBeConst
 	auto
-	create_hook(const std::string_view &name, const LPVOID pointer, const LPVOID detour, LPVOID *original) -> void {
+	create_hook(const std::string_view &name, LPVOID pointer, LPVOID detour, LPVOID *original) -> void {
 		if (!g_minhook_initialized) {
 			if (MH_Initialize() != MH_OK) {
 				g_output << "[rivet] failed to initialize minhook\n";
@@ -131,8 +134,9 @@ namespace rivet_hook {
 		}
 	}
 
+	// ReSharper disable once CppParameterMayBeConst
 	auto
-	create_hook(const hex_signature &signature, const LPVOID detour, LPVOID *original, const size_t limit, const int select) -> void {
+	create_hook(const hex_signature &signature, LPVOID detour, LPVOID *original, const size_t limit, const int select) -> void {
 		const auto pointer = find_address(signature, limit, select);
 		if (pointer == 0) {
 			return;

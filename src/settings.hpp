@@ -62,7 +62,7 @@ namespace rivet_hook {
 
 		struct AddressCache {
 			std::string fingerprint;
-			std::map<uint64_t, std::vector<intptr_t>> addresses;
+			std::map<std::string, std::vector<intptr_t>> addresses;
 		} address_cache;
 
 		static auto

@@ -4,6 +4,7 @@
 
 #include <format>
 #include <fstream>
+#include <mutex>
 
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
@@ -113,15 +114,8 @@ namespace rivet_hook {
 				settings.address_cache.fingerprint = toml::find_or<std::string>(tbl, "__GAME_ID__", settings.address_cache.fingerprint);
 				if (valid_fingerprint(settings) && tbl.contains("address_cache")) {
 					if (tbl["address_cache"].is_table()) {
-						for (auto &[original_key, values] : tbl["address_cache"].as_table()) {
+						for (auto &[key, values] : tbl["address_cache"].as_table()) {
 							if (!values.is_array()) {
-								continue;
-							}
-
-							uint64_t key;
-							try {
-								key = std::stoull(original_key, nullptr, 16);
-							} catch (...) {
 								continue;
 							}
 
@@ -136,10 +130,6 @@ namespace rivet_hook {
 			} catch (...) {
 				// ignored
 			}
-		}
-
-		if (!valid_fingerprint(settings)) {
-			settings.address_cache.addresses.clear();
 		}
 
 		return settings;
@@ -195,12 +185,12 @@ namespace rivet_hook {
 		SAVE_SETTING(log, pointers, "logs pointer information; disable by default because log noise");
 
 		tbl["__GAME_ID__"] = address_cache.fingerprint;
-		for (auto &[original_key, values] : address_cache.addresses) {
+		for (auto &[key, values] : address_cache.addresses) {
 			auto arr = toml::array();
 			for (const auto value : values) {
 				arr.emplace_back(value - reinterpret_cast<intptr_t>(g_game_module));
 			}
-			tbl["address_cache"][std::format("{:x}", original_key)] = arr;
+			tbl["address_cache"][key] = arr;
 		}
 
 		if (std::ofstream file(settings_name, std::ios::trunc); file.is_open()) {

@@ -21,9 +21,9 @@ namespace rivet_hook {
 	};
 
 	struct hex_signature {
-		std::string_view name;  		           // name of the signature
-		uint32_t size { 0 };					   // size of the signature
-		uint64_t hash { 0 };					   // hash of the signature
+		std::string_view name;                    // name of the signature
+		uint32_t size { 0 };                      // size of the signature
+		uint64_t hash { 0 };                      // hash of the signature
 		std::array<signature_byte, 48> signature; // signature to match
 	};
 
