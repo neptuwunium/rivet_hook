@@ -13,7 +13,7 @@ if host_machine.system() == 'darwin'
     )
 endif
 
-include_dirs = include_directories('.', 'backends')
+include_dirs = include_directories('.', 'backends', 'misc/cpp', 'misc/freetype', 'misc/single_file')
 sources = files(
     'imgui.cpp',
     'imgui_demo.cpp',
@@ -194,7 +194,7 @@ endif
 # default_options:['cpp_std=c++17'] doesn't work under certain circumstances
 override_opts = ['cpp_std=c++17']
 
-args = ['-DIMGUI_API=']
+args = ['-DIMGUI_API=', '-DIMGUI_USER_CONFIG="../../src/rivet_imgui.h"']
 if get_option('disable_obsolete_functions')
     args += ['-DIMGUI_DISABLE_OBSOLETE_FUNCTIONS']
 endif

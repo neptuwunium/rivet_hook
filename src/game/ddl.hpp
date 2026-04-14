@@ -54,7 +54,7 @@ namespace rivet_hook::game {
 		uint32_t *ids;
 	};
 
-	struct ddl_type_ex_select_info {
+	struct DDLTypeSelectInfo {
 		uint32_t type_id;
 		uint32_t count;
 		intptr_t unknown1;
@@ -66,7 +66,7 @@ namespace rivet_hook::game {
 	};
 
 	struct DDLSelectTypeInfo {
-		const ddl_type_ex_select_info *select_info;
+		const DDLTypeSelectInfo *select_info;
 	};
 
 	struct DDLTypeDescriptor;
@@ -107,23 +107,21 @@ namespace rivet_hook::game {
 		int64_t size;
 	};
 
-	constexpr int COMPONENT_BASE_CLASS_IS_NEXT_ENTRY = 1;
-
 	struct ComponentInfo {
-		ddl_call_t *update_early;
-		ddl_call_t *update_early2;
-		ddl_call_t *update;
-		ddl_call_t *update_late;
-		ddl_call_t *update_thread;
-		ddl_call_t *update_thread2;
+		ddl_call_t *update_first;
+		ddl_call_t *update_first_results;
+		ddl_call_t *update_middle;
+		ddl_call_t *update_last;
+		ddl_call_t *update_async;
+		ddl_call_t *update_async_results;
 		ComponentPriusInfo prius_info;
-		const char* name;
-		void* unknown1;
-		void* unknown2;
+		const char *name;
+		void *unknown1;
+		void *unknown2;
 		int32_t size;
 		uint32_t id;
 		intptr_t base_components[9]; // cleared by component manager
-		DDLTypeInfo* prius;
+		DDLTypeInfo *prius;
 		ddl_call_t *create;
 		int32_t unknown3;
 		uint16_t index_a;
@@ -134,4 +132,4 @@ namespace rivet_hook::game {
 	};
 
 #pragma pack(pop)
-} // namespace rivet_hook::game::ddl
+} // namespace rivet_hook::game

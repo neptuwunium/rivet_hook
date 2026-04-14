@@ -4,10 +4,9 @@
 
 project('rivet', 'cpp',
 	license: 'EUPL-1.2',
-	version: '0.0.6',
+	version: '1.1.0',
 	default_options: [
 		'prefix=/usr',
-		'warning_level=3',
 		'cpp_std=c++20'
 	],
     meson_version: '>=1.2.1')
@@ -17,6 +16,26 @@ compiler = meson.get_compiler('cpp')
 cpp_args = []
 
 cpp_args = compiler.get_supported_arguments(
+    '/wd4061',
+    '/wd4068',
+    '/wd4070',
+    '/wd4201',
+    '/wd4365',
+    '/wd4464',
+    '/wd4582',
+    '/wd4583',
+    '/wd4623',
+    '/wd4625',
+    '/wd4626',
+    '/wd4668',
+    '/wd4710',
+    '/wd4711',
+    '/wd4820',
+    '/wd4866',
+    '/wd5027',
+    '/wd5039',
+    '/wd5045',
+    '/wd5267',
     '/utf-8',
     '/EHsc',
     '-fPIC',
@@ -46,15 +65,16 @@ if not compiler.check_header('toml.hpp')
     toml11_dep = dependency('toml11', version: '>= 4.4.0')
 endif
 
-imgui_dep = subproject('imgui',
+# imgui has no stable api, can't rely on system headers, we also are the only one disabling obsolete functions
+imgui_dep = subproject('imgui-docking',
    default_options: {
        'dx12': 'enabled',
        'win': 'enabled',
        'disable_obsolete_functions': true,
    },
-   required: true).get_variable('imgui_dep') # imgui has no stable api, can't rely on system headers
+   required: true).get_variable('imgui_dep')
 
-dstorage_dep = subproject('directstorage').get_variable('directstorage_dep')
+dstorage_dep = dependency('directstorage', version: '= 1.2.2')
 dxgi_dep = compiler.find_library('dxgi', required: true)
 d3d12_dep = compiler.find_library('d3d12', required: true)
 directxmath_dep = dependency('directxmath', version: '>= 2024.10.15.1')
@@ -70,6 +90,7 @@ rivet_hook = shared_library('rivet_hook', [
         'src/runtime_loader.cpp',
         'src/settings.cpp',
         'src/signature_engine.cpp',
+        'src/vk_enum.cpp',
     ],
     link_args: compiler.get_supported_arguments('-static-libgcc', '-static-libstdc++'),
     dependencies: [

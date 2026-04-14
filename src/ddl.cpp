@@ -62,7 +62,7 @@ namespace rivet_hook::ddl {
 					}
 				default:
 					{
-						if (g_settings.debug_ddl && (object + offset)[index] != 0 && type_ptr != nullptr) {
+						if (g_settings.ddl.debug_ddl && (object + offset)[index] != 0 && type_ptr != nullptr) {
 							g_output << "[DDL] " << type_ptr->name << " field " << type_ptr->field_names[type_index] << " (index " << index << ", type " << static_cast<int>(field_type)
 									 << ") has non-zero value that is not handled\n";
 						}
@@ -159,7 +159,7 @@ namespace rivet_hook::ddl {
 			return;
 		}
 
-		if (g_settings.debug_ddl && reinterpret_cast<const uint64_t *>(object + offset)[0] != 0) {
+		if (g_settings.ddl.debug_ddl && reinterpret_cast<const uint64_t *>(object + offset)[0] != 0) {
 			g_output << "[DDL] " << type_ptr->name << " field " << type_ptr->field_names[type_index] << " (type " << static_cast<int>(field_type) << ", array type " << static_cast<int>(array_type)
 					 << ") has non-zero value that is not handled\n";
 		}
@@ -170,8 +170,8 @@ namespace rivet_hook::ddl {
 		g_output << "[rivet] dumping DDL structures\n";
 		using namespace std::chrono_literals;
 
-		const auto hm_pointer = find_address("ddl hash map", g_game_module, DDL_HASH_MAP_SIGNATURE);
-		const auto tl_pointer = find_address("ddl type list", g_game_module, DDL_TYPE_LIST_SIGNATURE);
+		const auto hm_pointer = find_address(DDL_HASH_MAP_SIGNATURE);
+		const auto tl_pointer = find_address(DDL_TYPE_LIST_SIGNATURE);
 
 		if (hm_pointer == 0 || tl_pointer == 0) {
 			return;
@@ -233,7 +233,7 @@ namespace rivet_hook::ddl {
 				ddl_inst_this = nullptr;
 			}
 
-			if (g_settings.debug_ddl && ddl_inst_this != nullptr) {
+			if (g_settings.ddl.debug_ddl && ddl_inst_this != nullptr) {
 				std::ofstream ddl_bin;
 				ddl_bin.open("./ddl/" + std::string(type_ptr->name) + ".bin", std::ios::app | std::ios::binary);
 				ddl_bin.write(static_cast<char *>(ddl_inst_this), type_ptr->allocation_size + 16);
@@ -325,7 +325,7 @@ namespace rivet_hook::ddl {
 			type_info["fields"] = fields;
 			types.push_back(type_info);
 
-			if (g_settings.debug_ddl) {
+			if (g_settings.ddl.debug_ddl) {
 				std::ofstream ddl_json_data;
 				ddl_json_data.open("./ddl/" + std::string(type_ptr->name) + ".json");
 				auto ddl_json_text = type_info.dump(4);
@@ -368,8 +368,8 @@ namespace rivet_hook::ddl {
 		using version_str_t = const char *(*) (uint32_t index);
 		using version_hash_t = uint32_t (*)(uint32_t index);
 
-		auto function_ptr = find_address("version name function", g_game_module, VERSION_SIGNATURE);
-		auto hash_function_ptr = find_address("version hash function", g_game_module, VERSION_HASH_SIGNATURE);
+		auto function_ptr = find_address(VERSION_SIGNATURE);
+		auto hash_function_ptr = find_address(VERSION_HASH_SIGNATURE);
 
 		if (function_ptr == 0 || hash_function_ptr == 0) {
 			return;
@@ -379,7 +379,7 @@ namespace rivet_hook::ddl {
 		auto func1 = reinterpret_cast<version_str_t>(function_ptr);
 		auto func2 = reinterpret_cast<version_hash_t>(hash_function_ptr);
 
-		int32_t index = 0;
+		uint32_t index = 0;
 		nlohmann::json versions = nlohmann::json::array_t();
 		while (true) {
 			auto version_str = func1(index++);
@@ -410,8 +410,8 @@ namespace rivet_hook::ddl {
 	dump_components() -> void {
 		g_output << "[rivet] dumping components\n";
 
-		auto component_registry = load_rel_var(find_address("component registry", g_game_module, COMPONENT_REGISTER_SIGNATURE), COMPONENT_REGISTRY_ADDRESS);
-		auto component_count = load_rel_var(find_address("component count", g_game_module, COMPONENT_REGISTER_SIGNATURE), COMPONENT_COUNT_ADDRESS);
+		auto component_registry = load_rel_var(find_address(COMPONENT_REGISTER_SIGNATURE), COMPONENT_REGISTRY_ADDRESS);
+		auto component_count = load_rel_var(find_address(COMPONENT_REGISTER_SIGNATURE), COMPONENT_COUNT_ADDRESS);
 
 		if (component_registry == nullptr || component_count == nullptr) {
 			return;
@@ -432,6 +432,7 @@ namespace rivet_hook::ddl {
 			g_output << "[component] processing " << std::hex << component_info.name << " " << component_info.id << "\n";
 			component["id"] = component_info.id;
 			component["name"] = component_info.name ? component_info.name : "";
+			component["size"] = component_info.size;
 			component["prius_size"] = component_info.prius_info.size;
 			if (component_info.prius) {
 				auto prius_json = nlohmann::json::array_t();
@@ -481,21 +482,22 @@ namespace rivet_hook::ddl {
 			return;
 		}
 
-		if (g_settings.dump_ddl) {
-			if (g_settings.debug_ddl) {
+		if (g_settings.ddl.dump_ddl) {
+			if (g_settings.ddl.debug_ddl) {
 				std::filesystem::create_directory("./ddl");
 			}
 			dump_ddl();
 		}
 
-		if (g_settings.dump_versions) {
+		if (g_settings.ddl.dump_versions) {
 			dump_versions();
 		}
 
-		if (g_settings.dump_components) {
+		if (g_settings.ddl.dump_components) {
 			dump_components();
 		}
 
 		g_output.flush();
+		g_settings.save();
 	}
 } // namespace rivet_hook::ddl

@@ -17,54 +17,6 @@ namespace rivet_hook::game {
 	constexpr static auto decode_url_string_name = "?DecodeURLString@Library@cohtml@@SAXPEBDIPEADPEAI@Z";
 
 #pragma pack(push, 1)
-	enum class AssetType : uint32_t {
-		Built = 0,
-		TextureStream = 1,
-		Unknown2 = 2,
-		Audio = 3,
-		Unknown4 = 4,
-		Animation = 5,
-		Unknown6 = 6,
-		ZoneGrid = 7,
-		Count = 8,
-	};
-
-	enum class AssetLanguage : uint32_t {
-		None = 0,
-		English = 1,
-		BritishEnglish = 2,
-		Danish = 3,
-		Dutch = 4,
-		Finnish = 5,
-		French = 6,
-		German = 7,
-		Italian = 8,
-		Japanese = 9,
-		Korean = 10,
-		Norwegian = 11,
-		Polish = 12,
-		Portuguese = 13,
-		Russian = 14,
-		Spanish = 15,
-		Swedish = 16,
-		BrazilianPortuguese = 17,
-		Arabic = 18,
-		Turkish = 19,
-		LatinAmericanSpanish = 20,
-		SimplifiedChinese = 21,
-		TraditionalChinese = 22,
-		CanadianFrench = 23,
-		Czech = 24,
-		Hungarian = 25,
-		Greek = 26,
-		Romanian = 27,
-		Thai = 28,
-		Vietnamese = 29,
-		Indonesian = 30,
-		Croatian = 31,
-		Count = 0x20,
-	};
-
 	enum class AssetFileStatus : uint32_t {
 		Closed,
 		Pending,
@@ -178,20 +130,6 @@ namespace rivet_hook::game {
 	};
 
 	static_assert(sizeof(MipDataRange) == 0x10, "MipDataRange size mismatch");
-
-	struct TextureAsset {
-		Asset base;
-		uint8_t unknown1[0x22];
-		uint32_t max_lod;
-		ID3D12Resource *resource;
-		uint8_t unknown2[0x7d];
-		uint8_t loaded_lods;
-	};
-
-	static_assert(offsetof(TextureAsset, base.assetId) == 0x8, "TextureAsset base.assetId offset mismatch");
-	static_assert(offsetof(TextureAsset, max_lod) == 0x3c, "TextureAsset max_lod offset mismatch");
-	static_assert(offsetof(TextureAsset, resource) == 0x40, "TextureAsset resource offset mismatch");
-	static_assert(offsetof(TextureAsset, loaded_lods) == 0xc5, "TextureAsset loaded_lods offset mismatch");
 
 	struct GPUDesc11 {
 		ID3D11Resource *resource;
@@ -356,4 +294,4 @@ namespace rivet_hook::game {
 	using dstorage_enqueue_request_t = void(STDMETHODCALLTYPE *)(IDStorageQueue *self, const DSTORAGE_REQUEST *request);
 	using dstorage_create_context_t = NxDStorageWorkerContext *(*) (NxDStorageWorkerContext * self, void *callback, int32_t bufferSize, const char *name);
 	using dstorage_init_t = bool (*)(NxDStorage *self, ID3D12Device *device, NxDStorageConfig *config);
-} // namespace rivet_hook::game::asset_pipeline
+} // namespace rivet_hook::game

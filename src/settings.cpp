@@ -2,31 +2,51 @@
 //
 // SPDX-License-Identifier: EUPL-1.2
 
+#include <format>
+#include <fstream>
+#include <mutex>
+
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 
-#include <format>
-#include <fstream>
-
+#include <nlohmann/json.hpp>
 #include <toml.hpp>
 
 #include "runtime.hpp"
 #include "settings.hpp"
+#include "vk_enum.hpp"
 
-#define LOAD_SETTING_EX(group, type, name, var_name)                                 \
-	if (tbl.contains(group) && tbl.at(group).is_table()) {                           \
-		settings.name = toml::find_or<type>(tbl.at(group), var_name, settings.name); \
-	}
+#define LOAD_SETTING(group, type, name) \
+if (tbl.contains(#group) && tbl.at(#group).is_table()) { \
+	settings.group.name = toml::find_or<type>(tbl.at(#group), #name, settings.group.name); \
+}
 
-#define LOAD_SETTING(group, type, name) LOAD_SETTING_EX(group, type, name, #name)
+#define LOAD_SETTING_KEY(group, name) \
+if (tbl.contains(#group) && tbl.at(#group).is_table()) { \
+	auto var = tbl.at(#group).at(#name); \
+	if (var.is_string()) settings.group.name = StringToVKey(var.as_string()); \
+	else if (var.is_integer()) settings.group.name = static_cast<int>(var.as_integer()); \
+}
 
-#define SAVE_SETTING_EX(group, name, var_name, comment) \
-	tbl[group][var_name] = name;                        \
-	tbl[group].at(var_name).comments().push_back(" " comment)
+#define SAVE_SETTING(group, name, comment) \
+	tbl[#group][#name] = group.name; \
+	tbl[#group][#name].comments().clear(); \
+	tbl[#group][#name].comments().push_back(" " comment)
 
-#define SAVE_SETTING(group, name, comment) SAVE_SETTING_EX(group, name, #name, comment)
+#define SAVE_SETTING_KEY(group, name, comment) \
+	if(const auto value = VKeyToString(group.name); !value.empty()) tbl[#group][#name] = value; \
+	else tbl[#group][#name] = group.name; \
+	tbl[#group][#name].comments().clear(); \
+	tbl[#group][#name].comments().push_back(" " comment)
+
+#define CREATE_TABLE(group) \
+	if (!tbl.contains(#group) || !tbl.at(#group).is_table()) tbl[#group] = toml_table();
+
+using toml_table = toml::basic_value<toml::ordered_type_config>::table_type;
 
 namespace rivet_hook {
+	std::mutex save_mutex;
+
 	auto
 	valid_fingerprint(Settings &settings) -> bool {
 		const auto dos = reinterpret_cast<PIMAGE_DOS_HEADER>(g_game_module);
@@ -40,10 +60,10 @@ namespace rivet_hook {
 			return false;
 		}
 
-		if (const auto fingerprint = std::format("{}:{}#{}", headers->OptionalHeader.AddressOfEntryPoint, headers->OptionalHeader.SizeOfImage, headers->FileHeader.TimeDateStamp);
-			fingerprint != settings.fingerprint) {
+		if (const auto fingerprint = std::format("{}:{}#{}?2", headers->OptionalHeader.AddressOfEntryPoint, headers->OptionalHeader.SizeOfImage, headers->FileHeader.TimeDateStamp);
+			settings.address_cache.fingerprint.empty() || fingerprint != settings.address_cache.fingerprint) {
 			g_output << "[rivet] game version mismatch, invalidating pointers\n";
-			settings.fingerprint = fingerprint;
+			settings.address_cache.fingerprint = fingerprint;
 			return false;
 		}
 
@@ -54,60 +74,62 @@ namespace rivet_hook {
 	Settings::load() -> Settings {
 		Settings settings;
 
-		try {
-			const auto tbl = toml::parse(settings_name);
+		if (std::filesystem::exists(settings_name)) {
+			try {
+				auto tbl = toml::parse(settings_name);
+				if (!tbl.is_table()) {
+					tbl = toml_table();
+				}
 
-			LOAD_SETTING(utility_group, bool, suppress_crash_handler);
-			LOAD_SETTING(utility_group, bool, attach_context_log);
-			LOAD_SETTING(utility_group, bool, attach_log);
-			LOAD_SETTING(utility_group, bool, unpause_focus);
-			LOAD_SETTING(utility_group, bool, enable_overlay);
+				LOAD_SETTING(utility, bool, suppress_crash_handler);
+				LOAD_SETTING(utility, bool, attach_context_log);
+				LOAD_SETTING(utility, bool, attach_log);
+				LOAD_SETTING(utility, bool, unpause_focus);
 
-			LOAD_SETTING(ddl_group, bool, dump_versions);
-			LOAD_SETTING(ddl_group, bool, dump_components);
-			LOAD_SETTING(ddl_group, bool, dump_ddl);
-			LOAD_SETTING(ddl_group, bool, debug_ddl);
+				LOAD_SETTING(overlay, bool, enabled);
+				LOAD_SETTING_KEY(overlay, toggle_key);
+				LOAD_SETTING_KEY(overlay, spawn_debug_actor_key);
 
-			LOAD_SETTING_EX(renderdoc_group, bool, load_renderdoc, "enabled");
-			LOAD_SETTING_EX(renderdoc_group, std::string, renderdoc_path, "dll_path");
+				LOAD_SETTING(ddl, bool, dump_versions);
+				LOAD_SETTING(ddl, bool, dump_components);
+				LOAD_SETTING(ddl, bool, dump_ddl);
+				LOAD_SETTING(ddl, bool, debug_ddl);
 
-			LOAD_SETTING_EX(assets_group, bool, enable_asset_loader, "enabled");
-			LOAD_SETTING_EX(assets_group, bool, log_mod_access, "log");
-			LOAD_SETTING_EX(assets_group, bool, log_mod_state, "verbose");
-			// LOAD_SETTING_EX(assets_name, bool, force_legacy_textures, "disable_dstorage");
-			LOAD_SETTING_EX(assets_group, std::vector<std::string>, asset_paths, "paths");
+				LOAD_SETTING(renderdoc, bool, enabled);
+				LOAD_SETTING(renderdoc, std::string, dll_path);
 
-			LOAD_SETTING_EX(log_group, bool, log_cohtml, "cohtml");
-			LOAD_SETTING_EX(log_group, bool, log_paths, "paths");
-			LOAD_SETTING_EX(log_group, bool, log_loose_io, "loose_io");
-			LOAD_SETTING_EX(log_group, bool, log_asset_opens, "asset_io");
-			LOAD_SETTING_EX(log_group, bool, log_asset_ids, "id");
-			LOAD_SETTING_EX(log_group, bool, log_hook_state, "pointers");
+				LOAD_SETTING(assets, bool, enabled);
+				LOAD_SETTING(assets, bool, log);
+				LOAD_SETTING(assets, bool, verbose);
+				// LOAD_SETTING(assets, bool, disable_dstorage);
+				LOAD_SETTING(assets, std::vector<std::string>, paths);
 
-			settings.fingerprint = toml::find_or<std::string>(tbl, "__GAME_ID__", settings.fingerprint);
-			if (tbl.contains(addr_cache_group)) {
-				if (auto addr_cache = tbl.at(addr_cache_group); addr_cache.is_table()) {
-					for (auto &[original_key, values] : addr_cache.as_table()) {
-						if (!values.is_array()) {
-							continue;
-						}
+				LOAD_SETTING(log, bool, cohtml);
+				LOAD_SETTING(log, bool, paths);
+				LOAD_SETTING(log, bool, loose_io);
+				LOAD_SETTING(log, bool, asset_io);
+				LOAD_SETTING(log, bool, id);
+				LOAD_SETTING(log, bool, pointers);
 
-						std::string key = original_key;
-						std::ranges::replace(key, '_', ' ');
-						settings.addresses[key] = {};
+				settings.address_cache.fingerprint = toml::find_or<std::string>(tbl, "__GAME_ID__", settings.address_cache.fingerprint);
+				if (valid_fingerprint(settings) && tbl.contains("address_cache")) {
+					if (tbl["address_cache"].is_table()) {
+						for (auto &[key, values] : tbl["address_cache"].as_table()) {
+							if (!values.is_array()) {
+								continue;
+							}
 
-						for (auto &value : values.as_array()) {
-							settings.addresses[key].emplace_back(value.as_integer() + reinterpret_cast<intptr_t>(g_game_module));
+							settings.address_cache.addresses[key] = {};
+
+							for (auto &value : values.as_array()) {
+								settings.address_cache.addresses[key].emplace_back(value.as_integer() + reinterpret_cast<intptr_t>(g_game_module));
+							}
 						}
 					}
 				}
+			} catch (...) {
+				// ignored
 			}
-		} catch (const std::exception &) {
-			// ignored
-		}
-
-		if (!valid_fingerprint(settings)) {
-			settings.addresses.clear();
 		}
 
 		return settings;
@@ -115,50 +137,60 @@ namespace rivet_hook {
 
 	auto
 	Settings::save() const -> void {
-		toml::value tbl = toml::ordered_table();
-		tbl[utility_group] = toml::ordered_table();
-		tbl[ddl_group] = toml::ordered_table();
-		tbl[renderdoc_group] = toml::ordered_table();
-		tbl[assets_group] = toml::ordered_table();
-		tbl[log_group] = toml::ordered_table();
-		tbl[addr_cache_group] = toml::ordered_table();
+		std::lock_guard lock(save_mutex);
 
-		SAVE_SETTING(utility_group, suppress_crash_handler, "disable the exception handler allowing for debuggers to attach without invoking the crash handler");
-		SAVE_SETTING(utility_group, attach_context_log, "redirect the internal logger context state to rivet.log; disable by default for clutter reasons");
-		SAVE_SETTING(utility_group, attach_log, "redirect the internal logger to rivet.log; disable by default because the same line is printed frequently");
-		SAVE_SETTING(utility_group, unpause_focus, "prevent the game from pausing when alt tabbed");
-		SAVE_SETTING(utility_group, enable_overlay, "enable imgui overlay for various in game stuffs");
+		toml::basic_value<toml::ordered_type_config> tbl;
+		if (std::filesystem::exists(settings_name)) {
+			tbl = toml::parse<toml::ordered_type_config>(settings_name);
+		} else {
+			tbl = toml_table();
+		}
 
-		SAVE_SETTING(ddl_group, dump_versions, "dumps versions to json; disable by default for clutter reasons");
-		SAVE_SETTING(ddl_group, dump_components, "dumps components to json; disable by default for clutter reasons");
-		SAVE_SETTING(ddl_group, dump_ddl, "dumps DDL type structures to json; disable by default for clutter reasons");
-		SAVE_SETTING(ddl_group, debug_ddl, "logs DDL type information; disable by default because log noise");
+		CREATE_TABLE(utility);
+		CREATE_TABLE(overlay);
+		CREATE_TABLE(ddl);
+		CREATE_TABLE(renderdoc);
+		CREATE_TABLE(assets);
+		CREATE_TABLE(log);
+		CREATE_TABLE(address_cache);
 
-		SAVE_SETTING_EX(renderdoc_group, load_renderdoc, "enabled", "loads renderdoc.dll into the game; disable by default because it has issues with ReShade");
-		SAVE_SETTING_EX(renderdoc_group, renderdoc_path, "dll_path", "path to renderdoc/dll");
+		SAVE_SETTING(utility, suppress_crash_handler, "disable the exception handler allowing for debuggers to attach without invoking the crash handler");
+		SAVE_SETTING(utility, attach_context_log, "redirect the internal logger context state to rivet.log; disable by default for clutter reasons");
+		SAVE_SETTING(utility, attach_log, "redirect the internal logger to rivet.log; disable by default because the same line is printed frequently");
+		SAVE_SETTING(utility, unpause_focus, "prevent the game from pausing when alt tabbed");
 
-		SAVE_SETTING_EX(assets_group, enable_asset_loader, "enabled", "enables loose asset loading");
-		SAVE_SETTING_EX(assets_group, asset_paths, "paths", "list of paths to load assets from, order is priority. first entry is least priority.");
-		SAVE_SETTING_EX(assets_group, log_mod_access, "log", "logs when mod files are accessed; disable by default because log noise");
-		SAVE_SETTING_EX(assets_group, log_mod_state, "verbose", "logs the mod pipeline state; disable by default because log noise");
-		SAVE_SETTING_EX(assets_group, force_legacy_textures, "disable_dstorage", "force disables directstorage, will have a performance impact. dstorage is currently not supported");
+		SAVE_SETTING(overlay, enabled, "enable imgui overlay for various in game stuffs");
+		SAVE_SETTING_KEY(overlay, toggle_key, "what key to toggle the imgui overlay with");
+		SAVE_SETTING_KEY(overlay, spawn_debug_actor_key, "what key to debug spawn an actor with");
 
-		SAVE_SETTING_EX(log_group, log_cohtml, "cohtml", "logs coherent ui url decode requests; disable by default because log noise");
-		SAVE_SETTING_EX(log_group, log_paths, "paths", "logs asset paths as they are loaded; disable by default because log noise");
-		SAVE_SETTING_EX(log_group, log_loose_io, "loose_io", "logs loose io; disable by default because log noise");
-		SAVE_SETTING_EX(log_group, log_asset_opens, "asset_io", "logs asset paths as they are assets; disable by default because log noise");
-		SAVE_SETTING_EX(log_group, log_asset_ids, "id", "logs asset ids as they are hashed; disable by default because log noise");
-		SAVE_SETTING_EX(log_group, log_hook_state, "pointers", "logs pointer information; disable by default because log noise");
+		SAVE_SETTING(ddl, dump_versions, "dumps versions to json; disable by default for clutter reasons");
+		SAVE_SETTING(ddl, dump_components, "dumps components to json; disable by default for clutter reasons");
+		SAVE_SETTING(ddl, dump_ddl, "dumps DDL type structures to json; disable by default for clutter reasons");
+		SAVE_SETTING(ddl, debug_ddl, "logs DDL type information; disable by default because log noise");
 
-		tbl["__GAME_ID__"] = fingerprint;
-		for (auto &[original_key, values] : addresses) {
+		SAVE_SETTING(renderdoc, enabled, "loads renderdoc.dll into the game; disable by default because it has issues with ReShade");
+		SAVE_SETTING(renderdoc, dll_path, "path to renderdoc/dll");
+
+		SAVE_SETTING(assets, enabled, "enables loose asset loading");
+		SAVE_SETTING(assets, paths, "list of paths to load assets from, order is priority. first entry is least priority.");
+		SAVE_SETTING(assets, log, "logs when mod files are accessed; disable by default because log noise");
+		SAVE_SETTING(assets, verbose, "logs the mod pipeline state; disable by default because log noise");
+		SAVE_SETTING(assets, disable_dstorage, "force disables directstorage, will have a performance impact. dstorage is currently not supported");
+
+		SAVE_SETTING(log, cohtml, "logs coherent ui url decode requests; disable by default because log noise");
+		SAVE_SETTING(log, paths, "logs asset paths as they are loaded; disable by default because log noise");
+		SAVE_SETTING(log, loose_io, "logs loose io; disable by default because log noise");
+		SAVE_SETTING(log, asset_io, "logs asset paths as they are assets; disable by default because log noise");
+		SAVE_SETTING(log, id, "logs asset ids as they are hashed; disable by default because log noise");
+		SAVE_SETTING(log, pointers, "logs pointer information; disable by default because log noise");
+
+		tbl["__GAME_ID__"] = address_cache.fingerprint;
+		for (auto &[key, values] : address_cache.addresses) {
 			auto arr = toml::array();
 			for (const auto value : values) {
 				arr.emplace_back(value - reinterpret_cast<intptr_t>(g_game_module));
 			}
-			std::string key = original_key;
-			std::ranges::replace(key, ' ', '_');
-			tbl[addr_cache_group][key] = arr;
+			tbl["address_cache"][key] = arr;
 		}
 
 		if (std::ofstream file(settings_name, std::ios::trunc); file.is_open()) {

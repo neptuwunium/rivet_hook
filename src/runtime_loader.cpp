@@ -8,18 +8,14 @@
 #include <unordered_map>
 #include <ranges>
 
-#include <wrl/client.h>
-#include <dstorage.h>
-#include <initguid.h>
+#include <MinHook.h>
 
 #include "game/asset_pipeline.hpp"
 #include "runtime.hpp"
 #include "runtime_loader.hpp"
+
 #include "settings.hpp"
 #include "signature.hpp"
-
-DEFINE_GUID(IID_IDStorageQueue1, 0xdd2f482c, 0x5eff, 0x41e8, 0x9c, 0x9e, 0xd2, 0x37, 0x4b, 0x27, 0x81, 0x28);
-DEFINE_GUID(IID_IDStorageFactory, 0x6924ea0c, 0xc3cd, 0x4826, 0xb1, 0x0a, 0xf6, 0x4f, 0x4e, 0xd9, 0x27, 0xc1);
 
 namespace rivet_hook {
 	constexpr int64_t RIVET_SENTINEL = 0x7fffffff'ffffff00;
@@ -99,10 +95,10 @@ namespace rivet_hook {
 		0x98aa90ad5ea29cf5,
 	};
 
-	std::array<std::string_view, static_cast<int32_t>(AssetLanguage::Count)> rivet_lang_prefix = {
+	std::array<std::string_view, static_cast<int32_t>(AssetLanguage::Count)> rivet_lang_prefix = {{
 		"none", "us", "gb", "dk", "nl", "fi", "fr", "de", "it", "jp", "kr", "no", "pl", "pt", "ru", "es",
 		"se", "br", "ar", "tr", "la", "cs", "ct", "fc", "cz", "hu", "el", "ro", "th", "vi", "id", "hr",
-	};
+	}};
 
 	std::array<std::string_view, static_cast<int32_t>(AssetType::Count)> rivet_exts = {
 		"",
@@ -144,8 +140,6 @@ namespace rivet_hook {
 	SortFunc game_sort_op = {};
 	bool *legacy_texture_loading = nullptr;
 	bool *disable_directstorage = nullptr;
-
-	Microsoft::WRL::ComPtr<IDStorageQueue1> dstorage_queue = nullptr;
 
 	auto
 	create_asset_id(AssetId *asset_id, const char *asset_name) -> AssetId * {
@@ -195,19 +189,14 @@ namespace rivet_hook {
 
 	auto
 	hook_cohtml() -> void {
-		const HMODULE mod = GetModuleHandleA("cohtml.WindowsDesktop.dll");
-		if (!mod) {
-			g_output << "cannot hook cohtml, not loaded yet.\n";
+		LPVOID proc;
+		if (const auto status = MH_CreateHookApiEx(L"cohtml.WindowsDesktop.dll", decode_url_string_name, reinterpret_cast<LPVOID>(decode_url), reinterpret_cast<LPVOID *>(&game_decode_url), &proc);
+			status != MH_OK) {
+			g_output << "[cohtml] cannot hook cohtml: " << MH_StatusToString(status) << "\n";
 			return;
 		}
 
-		const auto proc = reinterpret_cast<LPVOID>(GetProcAddress(mod, decode_url_string_name));
-		if (!proc) {
-			g_output << "cannot hook cohtml, export not found.\n";
-			return;
-		}
-
-		create_hook("cohtml", proc, reinterpret_cast<LPVOID>(decode_url), reinterpret_cast<LPVOID *>(&game_decode_url));
+		MH_EnableHook(proc);
 	}
 
 	auto
@@ -427,7 +416,7 @@ namespace rivet_hook {
 	load_mod_assets() -> void {
 		const auto cwd = std::filesystem::current_path();
 
-		for (const auto &entry : g_settings.asset_paths) {
+		for (const auto &entry : g_settings.assets.paths) {
 			auto path = std::filesystem::path(entry);
 
 			if (!path.is_absolute()) {
@@ -463,7 +452,7 @@ namespace rivet_hook {
 
 	auto
 	open_file(const intptr_t self, AssetFile *file, const AssetId asset_id, AssetType type, const int32_t platform, const uint8_t manager_id) -> void {
-		if (g_settings.log_loose_io) {
+		if (g_settings.log.loose_io) {
 			g_output << "[loose][open ] " << std::hex << asset_id << " type: " << static_cast<int32_t>(type) << " manager: " << static_cast<uint32_t>(manager_id) << " status: " << static_cast<uint32_t>(file->status)
 					 << " padding: " << file->padding << " data: " << file->data << " asset_id: " << file->asset_id << "\n";
 			g_output.flush();
@@ -471,7 +460,7 @@ namespace rivet_hook {
 
 		if (type < AssetType::Count) {
 			if (const auto *mod_file = find_mod_asset(asset_id, type); mod_file != nullptr) {
-				if (g_settings.log_mod_access) {
+				if (g_settings.assets.log) {
 					g_output << "[loose][open ] " << std::hex << asset_id << " type: " << static_cast<int32_t>(type) << " manager: " << static_cast<uint32_t>(manager_id) << " status: " << static_cast<uint32_t>(file->status)
 							 << " padding: " << file->padding << " data: " << file->data << " asset_id: " << file->asset_id << "\n";
 					g_output.flush();
@@ -491,14 +480,14 @@ namespace rivet_hook {
 
 	auto
 	resolve_handle(const intptr_t self, const AssetId asset_id, AssetType type, const int32_t platform, const uint8_t manager_id) -> int64_t {
-		if (g_settings.log_loose_io) {
+		if (g_settings.log.loose_io) {
 			g_output << "[loose][reslv] " << std::hex << asset_id << " type: " << static_cast<int32_t>(type) << " manager: " << static_cast<uint32_t>(manager_id) << "\n";
 			g_output.flush();
 		}
 
 		if (type < AssetType::Count) {
 			if (has_mod_asset(asset_id, type)) {
-				if (g_settings.log_mod_access) {
+				if (g_settings.assets.log) {
 					g_output << "[loose][reslv] " << std::hex << asset_id << " is modded\n";
 					g_output.flush();
 				}
@@ -512,14 +501,14 @@ namespace rivet_hook {
 
 	auto
 	read_file(const intptr_t self, AssetFile *file, char *buffer, const size_t offset, const size_t size, const int32_t priority, const int32_t unknown2) -> bool {
-		if (g_settings.log_loose_io) {
+		if (g_settings.log.loose_io) {
 			g_output << "[loose][read ] offset: " << std::hex << offset << " size: " << size << " status: " << static_cast<uint32_t>(file->status) << " padding: " << file->padding << " data: " << file->data
 					 << " asset_id: " << file->asset_id << "\n";
 			g_output.flush();
 		}
 
 		if (const auto type = static_cast<AssetType>(file->data & 0xFF); (file->data & RIVET_SENTINEL) == RIVET_SENTINEL && type < AssetType::Count) {
-			if (g_settings.log_mod_access) {
+			if (g_settings.assets.log) {
 				g_output << "[loose][read ] offset: " << std::hex << offset << " size: " << size << " status: " << static_cast<uint32_t>(file->status) << " padding: " << file->padding << " data: " << file->data
 						 << " asset_id: " << file->asset_id << "\n";
 				g_output.flush();
@@ -538,7 +527,7 @@ namespace rivet_hook {
 			}
 
 			game_set_file_status(file, AssetFileStatus::ReadFailed);
-			if (g_settings.log_mod_access) {
+			if (g_settings.assets.log) {
 				g_output << "[loose][read ] trying to read something that does not exist.\n";
 				g_output.flush();
 			}
@@ -555,12 +544,12 @@ namespace rivet_hook {
 		if (const auto type = static_cast<AssetType>(file->data & 0xFF); (file->data & RIVET_SENTINEL) == RIVET_SENTINEL && type < AssetType::Count) {
 			game_set_file_status(file, AssetFileStatus::Closed);
 			file->data = 0;
-			has_mod = g_settings.log_mod_access;
+			has_mod = g_settings.assets.log;
 		} else {
 			game_close_file(self, file);
 		}
 
-		if (g_settings.log_loose_io || has_mod) {
+		if (g_settings.log.loose_io || has_mod) {
 			g_output << "[loose][close] status: " << static_cast<uint32_t>(file->status) << " padding: " << file->padding << " data: " << file->data << " asset_id: " << file->asset_id << "\n";
 			g_output.flush();
 		}
@@ -577,7 +566,7 @@ namespace rivet_hook {
 			LoadMetadata meta = metadata[i];
 			uint64_t assetId = assetIds[i];
 
-			if (g_settings.log_asset_opens) {
+			if (g_settings.log.asset_io) {
 				g_output << "[built] " << std::hex << assetId << " type: " << static_cast<uint32_t>(meta.type) << "\n";
 			}
 
@@ -591,32 +580,32 @@ namespace rivet_hook {
 			}
 
 			if (mod_file != nullptr && mod_file->valid()) {
-				if (g_settings.log_mod_access) {
+				if (g_settings.assets.log) {
 					g_output << "[built] " << std::hex << assetId << " is modded\n";
 				}
 
-				if (g_settings.log_mod_access && g_settings.log_mod_state) {
+				if (g_settings.assets.log && g_settings.assets.verbose) {
 					g_output << "[built] " << std::hex << assetId << " create header\n";
 				}
 
 				AssetHeader *header = game_alloc_asset(0, 1, assetId, &meta, static_cast<uint8_t>(mod_file->language));
 
-				if (g_settings.log_mod_access && g_settings.log_mod_state) {
+				if (g_settings.assets.log && g_settings.assets.verbose) {
 					g_output << "[built] " << std::hex << assetId << " header created\n";
 				}
 
 				if (header) {
-					if (g_settings.log_mod_access && g_settings.log_mod_state) {
+					if (g_settings.assets.log && g_settings.assets.verbose) {
 						g_output << "[built] " << std::hex << assetId << " check valid, ptr " << reinterpret_cast<intptr_t>(mod_file->buffer) << "\n";
 					}
 
 					const auto magic = *reinterpret_cast<const uint32_t *>(mod_file->buffer);
-					if (g_settings.log_mod_access && g_settings.log_mod_state) {
+					if (g_settings.assets.log && g_settings.assets.verbose) {
 						g_output << "[built] " << std::hex << assetId << " magic " << magic << "\n";
 					}
 
 					if (mod_file->size <= 0x24 || !game_is_asset_valid(magic, meta.type, assetId)) {
-						if (g_settings.log_mod_access && g_settings.log_mod_state) {
+						if (g_settings.assets.log && g_settings.assets.verbose) {
 							g_output << "[built] " << std::hex << assetId << " not valid\n";
 						}
 
@@ -624,19 +613,19 @@ namespace rivet_hook {
 						goto commit;
 					}
 
-					if (g_settings.log_mod_access && g_settings.log_mod_state) {
+					if (g_settings.assets.log && g_settings.assets.verbose) {
 						g_output << "[built] " << std::hex << assetId << " valid, create\n";
 					}
 
 					if ((*game_create_asset)(header, mod_file->buffer, game_create_asset_data)) {
-						if (g_settings.log_mod_access && g_settings.log_mod_state) {
+						if (g_settings.assets.log && g_settings.assets.verbose) {
 							g_output << "[built] " << std::hex << assetId << " created\n";
 						}
 
 						intptr_t offset = 0x24;
 						for (int32_t j = 0; j < header->dataRangeCount; ++j) {
 							if (static_cast<size_t>(offset + header->dataRanges[j].size) > mod_file->size) {
-								if (g_settings.log_mod_access && g_settings.log_mod_state) {
+								if (g_settings.assets.log && g_settings.assets.verbose) {
 									g_output << "[built] " << std::hex << assetId << " out of bounds\n";
 								}
 
@@ -644,7 +633,7 @@ namespace rivet_hook {
 								break;
 							}
 
-							if (g_settings.log_mod_access && g_settings.log_mod_state) {
+							if (g_settings.assets.log && g_settings.assets.verbose) {
 								g_output << "[built] " << std::hex << assetId << " copy\n";
 							}
 
@@ -652,7 +641,7 @@ namespace rivet_hook {
 							offset += header->dataRanges[j].size;
 						}
 
-						if (g_settings.log_mod_access && g_settings.log_mod_state) {
+						if (g_settings.assets.log && g_settings.assets.verbose) {
 							g_output << "[built] " << std::hex << assetId << " done\n";
 						}
 
@@ -660,13 +649,13 @@ namespace rivet_hook {
 						goto commit;
 					}
 
-					if (g_settings.log_mod_access && g_settings.log_mod_state) {
+					if (g_settings.assets.log && g_settings.assets.verbose) {
 						g_output << "[built] " << std::hex << assetId << " cant create\n";
 					}
 					header->status = 4;
 
 				commit:
-					if (g_settings.log_mod_access && g_settings.log_mod_state) {
+					if (g_settings.assets.log && g_settings.assets.verbose) {
 						g_output << "[built] " << std::hex << assetId << " commit header\n";
 					}
 
@@ -778,59 +767,59 @@ namespace rivet_hook {
 		}
 		runtime_loader_ready = true;
 
-		if (const auto create_asset_id_ptrs = find_addresses("asset ids", g_game_module, CREATE_ASSET_ID_SIGNATURE); !create_asset_id_ptrs.empty()) {
-			if (g_settings.log_asset_ids) {
+		if (const auto create_asset_id_ptrs = find_addresses(CREATE_ASSET_ID_SIGNATURE); !create_asset_id_ptrs.empty()) {
+			if (g_settings.log.id) {
 				create_hook("asset ids", reinterpret_cast<LPVOID>(create_asset_id_ptrs[0]), reinterpret_cast<LPVOID>(&create_asset_id), reinterpret_cast<LPVOID *>(&game_create_asset_id));
 			} else {
 				game_create_asset_id = reinterpret_cast<create_asset_id_t>(create_asset_id_ptrs[0]);
 			}
 		}
 
-		if (g_settings.log_paths) {
-			create_hook("asset paths", g_game_module, LOAD_ASSET_SIGNATURE, reinterpret_cast<LPVOID>(&mgr_load_asset), reinterpret_cast<LPVOID *>(&game_mgr_load_asset));
+		if (g_settings.log.paths) {
+			create_hook(LOAD_ASSET_SIGNATURE, reinterpret_cast<LPVOID>(&mgr_load_asset), reinterpret_cast<LPVOID *>(&game_mgr_load_asset));
 		}
 
-		if (g_settings.log_cohtml) {
+		if (g_settings.log.cohtml) {
 			hook_cohtml();
 		}
 
-		if (!g_settings.enable_asset_loader) {
+		if (!g_settings.assets.enabled) {
 			return;
 		}
 
 		load_mod_assets();
 
-		#define LOAD_FUNC_ADDRESS_RAW(var, name, ptr) \
-		if (var = find_address(name, g_game_module, ptr); !var) { \
+		#define LOAD_FUNC_ADDRESS_RAW(var, name, sig) \
+		if (var = find_address(sig); !var) { \
 		g_output << "[loader] cannot initialize, " name " address is not found\n"; \
 		return; \
 		}
 
-		#define LOAD_FUNC_ADDRESS(var, name, type, ptr) \
-		if (var = reinterpret_cast<type>(find_address(name, g_game_module, ptr)); !var) { \
-		g_output << "[loader] cannot initialize, " name " address is not found\n"; \
+		#define LOAD_FUNC_ADDRESS(var, type, sig) \
+		if (var = reinterpret_cast<type>(find_address(sig)); !var) { \
+		g_output << "[loader] cannot initialize, " << sig.name << " address is not found\n"; \
 		return; \
 		}
 
-		#define LOAD_VAR_ADDRESS(var, name, type, ptr, addr) \
-			if (var = reinterpret_cast<type>(load_rel_var(find_address(name, g_game_module, ptr), addr)); !var) { \
-				g_output << "[loader] cannot initialize, " name " address is not found\n"; \
+		#define LOAD_VAR_ADDRESS(var, type, sig, addr) \
+			if (var = reinterpret_cast<type>(load_rel_var(find_address(sig), addr)); !var) { \
+				g_output << "[loader] cannot initialize, " << sig.name << " address is not found\n"; \
 				return; \
 			}
 
-		const auto * archivefs_vtable = static_cast<intptr_t*>(load_rel_var(find_address("archivefs", g_game_module, ARCHIVEFS_VTABLE_SIGNATURE), ARCHIVEFS_VTABLE_ADDRESS));
+		const auto * archivefs_vtable = static_cast<intptr_t*>(load_rel_var(find_address(ARCHIVEFS_VTABLE_SIGNATURE), ARCHIVEFS_VTABLE_ADDRESS));
 		if (!archivefs_vtable) {
 			g_output << "[loader] cannot initialize, archivefs address is not found\n";
 			return;
 		}
 
 		// functions we need to call for reimpl_load_ops
-		LOAD_FUNC_ADDRESS(game_resolve_asset, "resolve asset", resolve_asset_t, RESOLVE_ASSET_SIGNATURE);
-		LOAD_FUNC_ADDRESS(game_set_file_status, "set file status", set_file_status_t, SET_FILE_STATUS_SIGNATURE);
-		LOAD_FUNC_ADDRESS(game_alloc_asset, "alloc asset", alloc_asset_t, ALLOC_ASSET_RCRA_SIGNATURE);
-		LOAD_FUNC_ADDRESS(game_commit_assets, "commit asset", commit_assets_t, COMMIT_ASSET_RCRA_SIGNATURE);
-		LOAD_FUNC_ADDRESS(game_is_asset_valid, "is asset header valid", is_asset_valid_t, IS_ASSET_HEADER_VALID_RCRA_SIGNATURE);
-		LOAD_FUNC_ADDRESS(game_sort, "sort", sort_t, SORT_SIGNATURE);
+		LOAD_FUNC_ADDRESS(game_resolve_asset, resolve_asset_t, RESOLVE_ASSET_SIGNATURE);
+		LOAD_FUNC_ADDRESS(game_set_file_status, set_file_status_t, SET_FILE_STATUS_SIGNATURE);
+		LOAD_FUNC_ADDRESS(game_alloc_asset, alloc_asset_t, ALLOC_ASSET_RCRA_SIGNATURE);
+		LOAD_FUNC_ADDRESS(game_commit_assets, commit_assets_t, COMMIT_ASSET_RCRA_SIGNATURE);
+		LOAD_FUNC_ADDRESS(game_is_asset_valid, is_asset_valid_t, IS_ASSET_HEADER_VALID_RCRA_SIGNATURE);
+		LOAD_FUNC_ADDRESS(game_sort, sort_t, SORT_SIGNATURE);
 
 		LOAD_FUNC_ADDRESS_RAW(game_sort_op.func, "sort op", SORT_FUNC_RCRA_SIGNATURE);
 		game_sort_op.target = 0;
@@ -841,45 +830,45 @@ namespace rivet_hook {
 		}
 
 		// vars we need to read/write to for reimpl_load_ops
-		LOAD_VAR_ADDRESS(game_load_ops, "load operations", LoadOperation*, LOAD_OPS_SIGNATURE, LOAD_OPS_ADDRESS);
+		LOAD_VAR_ADDRESS(game_load_ops, LoadOperation*, LOAD_OPS_SIGNATURE, LOAD_OPS_ADDRESS);
 
 		// vars we need to call/read to for asset header creation
-		LOAD_VAR_ADDRESS(game_create_asset, "create asset", create_asset_t*, CREATE_ASSET_RCRA_SIGNATURE, CREATE_ASSET_RCRA_ADDRESS);
-		LOAD_VAR_ADDRESS(game_create_asset_data, "create asset data", void*, CREATE_ASSET_DATA_RCRA_SIGNATURE, CREATE_ASSET_DATA_RCRA_ADDRESS);
+		LOAD_VAR_ADDRESS(game_create_asset, create_asset_t*, CREATE_ASSET_RCRA_SIGNATURE, CREATE_ASSET_RCRA_ADDRESS);
+		LOAD_VAR_ADDRESS(game_create_asset_data, void*, CREATE_ASSET_DATA_RCRA_SIGNATURE, CREATE_ASSET_DATA_RCRA_ADDRESS);
 
 		// vars we need to overwrite to disable texture fencing
-		LOAD_VAR_ADDRESS(disable_directstorage, "disable directstorage", bool*, DISABLE_DIRECTSTORAGE_RCRA_SIGNATURE, DISABLE_DIRECTSTORAGE_RCRA_ADDRESS);
-		LOAD_VAR_ADDRESS(legacy_texture_loading, "legacy textures", bool*, LEGACY_TEXTURE_SIGNATURE, LEGACY_TEXTURE_ADDRESS);
+		LOAD_VAR_ADDRESS(disable_directstorage, bool*, DISABLE_DIRECTSTORAGE_RCRA_SIGNATURE, DISABLE_DIRECTSTORAGE_RCRA_ADDRESS);
+		LOAD_VAR_ADDRESS(legacy_texture_loading, bool*, LEGACY_TEXTURE_SIGNATURE, LEGACY_TEXTURE_ADDRESS);
 
 		// language tracking
 		LPVOID set_text_lang, set_audio_lang;
-		LOAD_VAR_ADDRESS(set_text_lang, "set text lang", LPVOID, REL_SET_TEXT_AUDIO_LANGUAGE_SIGNATURE, REL_SET_TEXT_LANGUAGE_ADDRESS);
-		LOAD_VAR_ADDRESS(set_audio_lang, "set audio lang", LPVOID, REL_SET_TEXT_AUDIO_LANGUAGE_SIGNATURE, REL_SET_AUDIO_LANGUAGE_ADDRESS);
-		create_hook("set text lang", set_text_lang, reinterpret_cast<LPVOID>(&set_text_language), reinterpret_cast<LPVOID *>(&game_set_text_language));
-		create_hook("set audio lang", set_audio_lang, reinterpret_cast<LPVOID>(&set_audio_language), reinterpret_cast<LPVOID *>(&game_set_audio_language));
+		LOAD_VAR_ADDRESS(set_text_lang, LPVOID, REL_SET_TEXT_AUDIO_LANGUAGE_SIGNATURE, REL_SET_TEXT_LANGUAGE_ADDRESS);
+		LOAD_VAR_ADDRESS(set_audio_lang, LPVOID, REL_SET_TEXT_AUDIO_LANGUAGE_SIGNATURE, REL_SET_AUDIO_LANGUAGE_ADDRESS);
+		create_hook("SET_TEXT_LANGUAGE", set_text_lang, reinterpret_cast<LPVOID>(&set_text_language), reinterpret_cast<LPVOID *>(&game_set_text_language));
+		create_hook("SET_AUDIO_LANGUAGE", set_audio_lang, reinterpret_cast<LPVOID>(&set_audio_language), reinterpret_cast<LPVOID *>(&game_set_audio_language));
 
 		// asset io
-		create_hook("preload load op", g_game_module, PRELOAD_LOAD_OP_RCRA_SIGNATURE, reinterpret_cast<LPVOID>(&reimpl_load_ops), nullptr);
-		create_hook("is valid asset", g_game_module, IS_ASSET_VALID_RCRA_SIGNATURE, reinterpret_cast<LPVOID>(&is_valid_asset), reinterpret_cast<LPVOID *>(&game_is_valid_asset));
-		create_hook("is installed asset", g_game_module, IS_INSTALLED_ASSET_SIGNATURE, reinterpret_cast<LPVOID>(&is_installed_asset), reinterpret_cast<LPVOID *>(&game_is_installed_asset));
+		create_hook(PRELOAD_LOAD_OP_RCRA_SIGNATURE, reinterpret_cast<LPVOID>(&reimpl_load_ops), nullptr);
+		create_hook(IS_ASSET_VALID_RCRA_SIGNATURE, reinterpret_cast<LPVOID>(&is_valid_asset), reinterpret_cast<LPVOID *>(&game_is_valid_asset));
+		create_hook(IS_INSTALLED_ASSET_SIGNATURE, reinterpret_cast<LPVOID>(&is_installed_asset), reinterpret_cast<LPVOID *>(&game_is_installed_asset));
 
 		// loose io
-		create_hook("resolve handle", reinterpret_cast<LPVOID>(archivefs_vtable[ARCHIVEFS_VTABLE_RESOLVEHANDLE]), reinterpret_cast<LPVOID>(&resolve_handle), reinterpret_cast<LPVOID *>(&game_resolve_handle));
-		create_hook("open file", reinterpret_cast<LPVOID>(archivefs_vtable[ARCHIVEFS_VTABLE_OPENFILE]), reinterpret_cast<LPVOID>(&open_file), reinterpret_cast<LPVOID *>(&game_open_file));
-		create_hook("read file", reinterpret_cast<LPVOID>(archivefs_vtable[ARCHIVEFS_VTABLE_READFILE]), reinterpret_cast<LPVOID>(&read_file), reinterpret_cast<LPVOID *>(&game_read_file));
-		create_hook("close file", reinterpret_cast<LPVOID>(archivefs_vtable[ARCHIVEFS_VTABLE_CLOSEFILE]), reinterpret_cast<LPVOID>(&close_file), reinterpret_cast<LPVOID *>(&game_close_file));
+		create_hook("ARCHIVEFS_RESOLVE_HANDLE", reinterpret_cast<LPVOID>(archivefs_vtable[ARCHIVEFS_VTABLE_RESOLVEHANDLE]), reinterpret_cast<LPVOID>(&resolve_handle), reinterpret_cast<LPVOID *>(&game_resolve_handle));
+		create_hook("ARCHIVEFS_OPEN_FILE", reinterpret_cast<LPVOID>(archivefs_vtable[ARCHIVEFS_VTABLE_OPENFILE]), reinterpret_cast<LPVOID>(&open_file), reinterpret_cast<LPVOID *>(&game_open_file));
+		create_hook("ARCHIVEFS_READ_FILE", reinterpret_cast<LPVOID>(archivefs_vtable[ARCHIVEFS_VTABLE_READFILE]), reinterpret_cast<LPVOID>(&read_file), reinterpret_cast<LPVOID *>(&game_read_file));
+		create_hook("ARCHIVEFS_CLOSE_FILE", reinterpret_cast<LPVOID>(archivefs_vtable[ARCHIVEFS_VTABLE_CLOSEFILE]), reinterpret_cast<LPVOID>(&close_file), reinterpret_cast<LPVOID *>(&game_close_file));
 
 		// disable fencing
 		// NOTE: This bricks DirectStorage, need to find a workaround for "next gen" texture fencing.
-		if (g_settings.force_legacy_textures) {
+		if (g_settings.assets.disable_dstorage) {
 			// needed to reset fencing a second time once the game starts.
-			create_hook("window init", g_game_module, WINDOW_INIT_RCRA_SIGNATURE, reinterpret_cast<LPVOID>(&window_init), reinterpret_cast<LPVOID *>(&game_window_init));
+			create_hook(WINDOW_INIT_RCRA_SIGNATURE, reinterpret_cast<LPVOID>(&window_init), reinterpret_cast<LPVOID *>(&game_window_init));
 
 			*legacy_texture_loading = true;
 			*disable_directstorage = true;
 		}
 
-		#undef RVA
+		g_settings.save();
 	}
 
 	auto
@@ -898,11 +887,6 @@ namespace rivet_hook {
 
 				mod_list.clear();
 			}
-		}
-
-		if (dstorage_queue) {
-			dstorage_queue->Release();
-			dstorage_queue = nullptr;
 		}
 	}
 } // namespace rivet_hook

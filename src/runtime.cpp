@@ -9,6 +9,7 @@
 #include <ostream>
 #include <thread>
 #include <filesystem>
+#include <mutex>
 
 #include "ddl.hpp"
 #include "overlay.hpp"
@@ -26,7 +27,7 @@
 namespace {
 	HMODULE g_renderdoc = nullptr;
 	bool g_minhook_initialized = false;
-	std::thread g_ddl_dump_thread;
+	bool has_exited = false;
 } // namespace
 
 namespace rivet_hook {
@@ -43,49 +44,54 @@ namespace rivet_hook {
 	context_log_t game_context_log = nullptr;
 	std::string last_context;
 	std::string last_message;
+	std::mutex address_cache_mutex;
 
 	auto
-	find_addresses(const std::string &name, const HMODULE game, const hex_signature &signature) -> std::vector<intptr_t> {
+	find_addresses(const hex_signature &signature) -> std::vector<intptr_t> {
 		std::vector<intptr_t> pointers;
-		if (!g_settings.addresses.contains(name)) {
-			if (g_settings.log_hook_state) {
-				g_output << "[rivet] searching for " << name << " pointers\n";
+		{
+			std::lock_guard guard(address_cache_mutex);
+
+			if (const auto cacheKey = std::format("{}_{:016X}", signature.name, signature.hash); !g_settings.address_cache.addresses.contains(cacheKey)) {
+				if (g_settings.log.pointers) {
+					g_output << "[rivet] searching for " << signature.name << " pointers\n";
+				}
+				pointers = scan(g_game_module, signature);
+				g_settings.address_cache.addresses.emplace(cacheKey, pointers);
+			} else {
+				pointers = g_settings.address_cache.addresses[cacheKey];
 			}
-			pointers = scan(game, signature);
-			g_settings.addresses.emplace(name, pointers);
-		} else {
-			pointers = g_settings.addresses[name];
 		}
 
 		if (pointers.empty()) {
-			g_output << "[rivet] could not find " << name << " pointer, aborting\n";
+			g_output << "[rivet] could not find " << signature.name << " pointer, aborting\n";
 			return {};
 		}
 
-		if (g_settings.log_hook_state) {
-			g_output << "[rivet] found " << pointers.size() << " " << name << " pointers" << std::dec << "\n";
+		if (g_settings.log.pointers) {
+			g_output << "[rivet] found " << pointers.size() << " " << signature.name << " pointers" << std::dec << "\n";
 		}
 
 		return pointers;
 	}
 
 	auto
-	find_address(const std::string &name, const HMODULE game, const hex_signature &signature, const size_t limit, const int select) -> intptr_t {
-		const auto pointers = find_addresses(name, game, signature);
+	find_address(const hex_signature &signature, const size_t limit, const int select) -> intptr_t {
+		const auto pointers = find_addresses(signature);
 
 		if (pointers.empty()) {
 			return 0;
 		}
 
 		if (pointers.size() > limit) {
-			g_output << "[rivet] found " << pointers.size() << " " << name << " pointers, too many. aborting\n";
+			g_output << "[rivet] found " << pointers.size() << " " << signature.name << " pointers, too many. aborting\n";
 			return 0;
 		}
 
 		const auto pointer = pointers[select];
 
-		if (g_settings.log_hook_state) {
-			g_output << "[rivet] found " << name << " pointer at " << std::hex << pointer << std::dec << "\n";
+		if (g_settings.log.pointers) {
+			g_output << "[rivet] found " << signature.name << " pointer at " << std::hex << pointer << std::dec << "\n";
 		}
 
 		return pointer;
@@ -102,8 +108,9 @@ namespace rivet_hook {
 		return rip + target;
 	}
 
+	// ReSharper disable twice CppParameterMayBeConst
 	auto
-	create_hook(const std::string &name, const LPVOID pointer, const LPVOID detour, LPVOID *original) -> void {
+	create_hook(const std::string_view &name, LPVOID pointer, LPVOID detour, LPVOID *original) -> void {
 		if (!g_minhook_initialized) {
 			if (MH_Initialize() != MH_OK) {
 				g_output << "[rivet] failed to initialize minhook\n";
@@ -122,19 +129,20 @@ namespace rivet_hook {
 			return;
 		}
 
-		if (g_settings.log_hook_state) {
+		if (g_settings.log.pointers) {
 			g_output << "[rivet] created " << name << " hook\n";
 		}
 	}
 
+	// ReSharper disable once CppParameterMayBeConst
 	auto
-	create_hook(const std::string &name, const HMODULE game, const hex_signature &signature, const LPVOID detour, LPVOID *original, const size_t limit, const int select) -> void {
-		const auto pointer = find_address(name, game, signature, limit, select);
+	create_hook(const hex_signature &signature, LPVOID detour, LPVOID *original, const size_t limit, const int select) -> void {
+		const auto pointer = find_address(signature, limit, select);
 		if (pointer == 0) {
 			return;
 		}
 
-		create_hook(name, reinterpret_cast<LPVOID>(pointer), detour, original);
+		create_hook(signature.name, reinterpret_cast<LPVOID>(pointer), detour, original);
 	}
 
 	auto
@@ -198,12 +206,15 @@ namespace rivet_hook {
 	namespace runtime {
 		auto
 		init() -> void {
-			atexit(fini);
 			// this runs on the main thread
 
 			g_output.open("./rivet.log");
 			g_output << "[rivet] init\n";
 			g_output << "[rivet] version " << RIVET_VERSION << "\n";
+
+			if (atexit(fini)) {
+				g_output << "[rivet] atexit cannot be registered\n";
+			}
 
 			if (!g_game_inited) {
 				g_game_inited = CreateEvent(nullptr, true, false, nullptr);
@@ -217,32 +228,32 @@ namespace rivet_hook {
 			g_settings = Settings::load();
 			g_settings.save();
 
-			create_hook("engine init", g_game_module, ENGINE_INIT_SIGNATURE, reinterpret_cast<LPVOID>(&engine_init), reinterpret_cast<LPVOID*>(&game_engine_init));
+			create_hook(ENGINE_INIT_SIGNATURE, reinterpret_cast<LPVOID>(&engine_init), reinterpret_cast<LPVOID *>(&game_engine_init));
 
-			if (g_settings.suppress_crash_handler) {
-				const auto nxe_vtable = load_rel_var(find_address("nxexception", g_game_module, REL_NXEXCEPTION_VTABLE_SIGNATURE), NXEXCEPTION_VTABLE_ADDRESS);
+			if (g_settings.utility.suppress_crash_handler) {
+				const auto nxe_vtable = load_rel_var(find_address(REL_NXEXCEPTION_VTABLE_SIGNATURE), NXEXCEPTION_VTABLE_ADDRESS);
 				const auto crash_handler = static_cast<void**>(nxe_vtable)[NXEXCEPTION_VTABLE_INIT];
 
-				create_hook("crash handler", crash_handler, reinterpret_cast<LPVOID>(&null_func), nullptr);
+				create_hook("CRASH_HANDLER", crash_handler, reinterpret_cast<LPVOID>(&null_func), nullptr);
 			}
 
-			Overlay::init();
+			Overlay::Init();
 			AssetLoader::init();
 			g_output << "[rivet] starting ddl thread\n";
-			g_ddl_dump_thread = std::thread(ddl::dump);
+			std::thread(ddl::dump).detach();
 
-			if (g_settings.load_renderdoc) {
+			if (g_settings.renderdoc.enabled) {
 				g_output << "[rivet] loading renderdoc\n";
 				if (std::filesystem::exists("renderdoc.dll")) {
 					g_output << "[rivet] loaded local renderdoc\n";
 					g_renderdoc = LoadLibraryA("renderdoc.dll");
 				} else {
-					if (const auto renderdoc_path = std::filesystem::path(g_settings.renderdoc_path.data()); renderdoc_path.empty()) {
+					if (const auto renderdoc_path = std::filesystem::path(g_settings.renderdoc.dll_path.data()); renderdoc_path.empty()) {
 						g_output << "[rivet] renderdoc.dll not found\n";
 					} else {
 						if (std::filesystem::exists(renderdoc_path)) {
 							g_output << "[rivet] loaded " << renderdoc_path << "\n";
-							g_renderdoc = LoadLibraryA(g_settings.renderdoc_path.data());
+							g_renderdoc = LoadLibraryA(g_settings.renderdoc.dll_path.data());
 						} else {
 							g_output << "[rivet] renderdoc.dll not found\n";
 						}
@@ -250,39 +261,45 @@ namespace rivet_hook {
 				}
 			}
 
-			if (g_settings.attach_context_log) {
-				create_hook("context log", g_game_module, CONTEXT_LOG_SIGNATURE, reinterpret_cast<LPVOID>(&context_log), reinterpret_cast<LPVOID *>(&game_context_log));
+			if (g_settings.utility.attach_context_log) {
+				create_hook(CONTEXT_LOG_SIGNATURE, reinterpret_cast<LPVOID>(&context_log), reinterpret_cast<LPVOID *>(&game_context_log));
 			}
 
-			if (g_settings.attach_log) {
-				create_hook("log", g_game_module, LOG_SIGNATURE, reinterpret_cast<LPVOID>(&log), nullptr);
+			if (g_settings.utility.attach_log) {
+				create_hook(LOG_SIGNATURE, reinterpret_cast<LPVOID>(&log), nullptr);
 			}
 
-			if (g_settings.unpause_focus) {
-				create_hook("force focus",  g_game_module, UNPAUSE_FOCUS_SIGNATURE, reinterpret_cast<LPVOID>(&return_true), nullptr);
+			if (g_settings.utility.unpause_focus) {
+				create_hook(UNPAUSE_FOCUS_SIGNATURE, reinterpret_cast<LPVOID>(&return_true), nullptr);
 			}
 
 			g_output << "[rivet] init complete\n";
-			g_output.flush();
+			g_settings.save();
 		}
 
 		auto
 		fini() -> void {
+			if (has_exited) {
+				return;
+			}
+			has_exited = true;
+
 			g_output << "[rivet] fini\n";
+			g_output.flush();
+			g_settings.save();
 
 			if (g_renderdoc != nullptr) {
 				g_output << "[rivet] unloading renderdoc\n";
+				g_output.flush();
 				FreeLibrary(g_renderdoc);
 			}
 
-			Overlay::fini();
+			g_output << "[rivet] Overlay fini\n";
+			g_output.flush();
+			Overlay::Fini();
+			g_output << "[rivet] AssetLoader fini\n";
+			g_output.flush();
 			AssetLoader::fini();
-
-			if (g_ddl_dump_thread.joinable()) {
-				g_ddl_dump_thread.join();
-			}
-
-			g_settings.save();
 
 			g_output << "[rivet] fini complete\n";
 			g_output.flush();

@@ -7,7 +7,6 @@ project('rivet_hid', 'cpp',
 	version: '1.0.0',
 	default_options: [
 		'prefix=/usr',
-		'warning_level=3',
 		'cpp_std=c++20'
 	],
     meson_version: '>=1.2.1')

@@ -11,5 +11,77 @@
 namespace rivet_hook::game {
 #pragma pack(push, 1)
 
+	struct SceneComponent {
+		Component* component;
+		uint32_t type;
+		int32_t index;
+	};
+
+	static_assert(sizeof(SceneComponent) == 0x10, "SceneComponent size is not 0x20");
+
+	struct SceneManager {
+		uint8_t unknown[0x1398];
+		SceneComponent* components;
+		uint8_t unknown2[0x18];
+		int32_t componentCount;
+		uint8_t unknown3[0x3c];
+		Actor* actors;
+		uint8_t unknown4[0x14];
+		int32_t actorCount;
+		uint8_t unknown5[0x6100];
+		ActorGroup* actorGroups;
+		uint8_t unknown6[0x14];
+		int32_t actorGroupCount;
+
+		__forceinline auto
+		ResolveComponent(const EngineHandle handle) const -> Component* {
+			if (static_cast<int32_t>(handle.id) > componentCount) {
+				return nullptr;
+			}
+
+			const auto sceneComponent = components[handle.id];
+			if (sceneComponent.type != handle.type) {
+				return nullptr;
+			}
+
+			return sceneComponent.component;
+		}
+
+		__forceinline auto
+		ResolveActor(const EngineHandle handle) const -> Actor* {
+			if (static_cast<int32_t>(handle.id) > actorCount) {
+				return nullptr;
+			}
+
+			const auto actor = &actors[handle.id];
+			if (actor->type != handle.type) {
+				return nullptr;
+			}
+
+			return actor;
+		}
+
+		__forceinline auto
+		ResolveActorGroup(const EngineHandle handle) const -> ActorGroup* {
+			if (static_cast<int32_t>(handle.id) > actorGroupCount) {
+				return nullptr;
+			}
+
+			const auto actorGroup = &actorGroups[handle.id];
+			if (actorGroup->type != handle.type) {
+				return nullptr;
+			}
+
+			return actorGroup;
+		}
+	};
+
+	static_assert(offsetof(SceneManager, components) == 0x1398, "SceneManager components offset is not 0x1398");
+	static_assert(offsetof(SceneManager, componentCount) == 0x13b8, "SceneManager componentCount offset is not 0x13b8");
+	static_assert(offsetof(SceneManager, actors) == 0x13f8, "SceneManager actors offset is not 0x13f8");
+	static_assert(offsetof(SceneManager, actorCount) == 0x1414, "SceneManager actorCount offset is not 0x1414");
+	static_assert(offsetof(SceneManager, actorGroups) == 0x7518, "SceneManager actorGroups offset is not 0x7518");
+	static_assert(offsetof(SceneManager, actorGroupCount) == 0x7534, "SceneManager actorGroupCount offset is not 0x7534");
+
 #pragma pack(pop)
-}
+} // namespace rivet_hook::game

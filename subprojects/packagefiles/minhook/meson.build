@@ -4,7 +4,6 @@ project(
   license: 'BSD-2-Clause',
   default_options: [
     'buildtype=release',
-    'warning_level=3'
   ],
   version: '1.3.4',
   meson_version: '>=0.50.0'

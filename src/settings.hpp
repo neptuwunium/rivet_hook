@@ -8,45 +8,62 @@
 #include <string>
 #include <vector>
 
+#define WIN32_LEAN_AND_MEAN
+#include "windows.h"
+
+#include <cstdint>
+
 namespace rivet_hook {
 	constexpr static auto settings_name = R"(.\rivet.toml)";
 
 	struct Settings {
-		static constexpr auto utility_group = "utility";
-		bool suppress_crash_handler = true;
-		bool attach_context_log = false;
-		bool attach_log = false;
-		bool unpause_focus = false;
-		bool enable_overlay = true;
+		struct Utility {
+			bool suppress_crash_handler = true;
+			bool attach_context_log = false;
+			bool attach_log = false;
+			bool unpause_focus = false;
+		} utility;
 
-		static constexpr auto ddl_group = "ddl";
-		bool dump_versions = false;
-		bool dump_ddl = false;
-		bool dump_components = false;
-		bool debug_ddl = false;
+		struct Overlay {
+			bool enabled = true;
+			int toggle_key = VK_F3;
+			int spawn_debug_actor_key = VK_F4;
+			int release_key = VK_NUMPAD5;
+		} overlay;
 
-		static constexpr auto renderdoc_group = "renderdoc";
-		bool load_renderdoc = false;
-		std::string renderdoc_path { "renderdoc.dll" };
+		struct DDL {
+			bool dump_versions = false;
+			bool dump_ddl = false;
+			bool dump_components = false;
+			bool debug_ddl = false;
+		} ddl;
 
-		static constexpr auto assets_group = "assets";
-		bool enable_asset_loader = true;
-		std::vector<std::string> asset_paths = { "mods/default" };
-		bool force_legacy_textures = true;
+		struct RenderDoc {
+			bool enabled = false;
+			std::string dll_path { "renderdoc.dll" };
+		} renderdoc;
 
-		static constexpr auto log_group = "log";
-		bool log_cohtml = false;
-		bool log_paths = false;
-		bool log_loose_io = false;
-		bool log_asset_opens = false;
-		bool log_asset_ids = false;
-		bool log_mod_access = false;
-		bool log_mod_state = false;
-		bool log_hook_state = false;
+		struct Assets {
+			bool enabled = true;
+			std::vector<std::string> paths = { "mods/default" };
+			bool disable_dstorage = true;
+			bool log = false;
+			bool verbose = false;
+		} assets;
 
-		static constexpr auto addr_cache_group = "address_cache";
-		std::string fingerprint;
-		std::map<std::string, std::vector<intptr_t>> addresses;
+		struct Log {
+			bool cohtml = false;
+			bool paths = false;
+			bool loose_io = false;
+			bool asset_io = false;
+			bool id = false;
+			bool pointers = false;
+		} log;
+
+		struct AddressCache {
+			std::string fingerprint;
+			std::map<std::string, std::vector<intptr_t>> addresses;
+		} address_cache;
 
 		static auto
 		load() -> Settings;

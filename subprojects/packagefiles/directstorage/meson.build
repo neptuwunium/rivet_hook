@@ -1,4 +1,4 @@
-project('directx', 'cpp', meson_version: '>=1.2.1')
+project('directx', 'cpp', version: '1.2.2', meson_version: '>=1.2.1')
 
 compiler = meson.get_compiler('cpp')
 

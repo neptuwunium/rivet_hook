@@ -7,18 +7,21 @@
 namespace rivet_hook {
 	struct Overlay {
 		static auto
-		init() -> void;
+		Init() -> void;
 
 		static auto
-		d3d12_init() -> void;
+		D3D12Init() -> void;
 
 		static auto
-		fini() -> void;
+		Fini() -> void;
 
 		static auto
-		d3d12_fini() -> void;
+		D3D12Fini() -> void;
 
 		static auto
-		draw_imgui() -> void;
+		HandleKeyPress(int vk) -> void;
+
+		static auto
+		DrawImGUI() -> void;
 	};
 }

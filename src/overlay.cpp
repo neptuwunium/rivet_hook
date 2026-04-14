@@ -112,6 +112,7 @@ namespace rivet_hook {
 	bool bricked = false;
 	bool imgui_initialized = false;
 	bool imgui_visible = false;
+	bool imgui_intercept_input = false;
 
 	auto
 	create_window() -> bool {
@@ -138,8 +139,8 @@ namespace rivet_hook {
 	reset() -> void {
 		if (imgui_initialized) {
 			imgui_initialized = false;
-			ImGui_ImplWin32_Shutdown();
 			ImGui_ImplDX12_Shutdown();
+			ImGui_ImplWin32_Shutdown();
 			ImGui::DestroyContext();
 		}
 
@@ -164,22 +165,27 @@ namespace rivet_hook {
 			g_pd3dCommandList->Release();
 			g_pd3dCommandList = nullptr;
 		}
+
 		if (g_pd3dRtvDescHeap) {
 			g_pd3dRtvDescHeap->Release();
 			g_pd3dRtvDescHeap = nullptr;
 		}
+
 		if (g_pd3dSrvDescHeap) {
 			g_pd3dSrvDescHeap->Release();
 			g_pd3dSrvDescHeap = nullptr;
 		}
+
 		if (g_fence) {
 			g_fence->Release();
 			g_fence = nullptr;
 		}
+
 		if (g_fenceEvent) {
 			CloseHandle(g_fenceEvent);
 			g_fenceEvent = nullptr;
 		}
+
 		g_fenceLastSignaledValue = 0;
 		g_frameIndex = 0;
 		g_frameCount = 0;
@@ -279,8 +285,11 @@ namespace rivet_hook {
 		IMGUI_CHECKVERSION();
 		ImGui::CreateContext();
 		ImGuiIO &io = ImGui::GetIO();
-		io.IniFilename = nullptr;
+		io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
 		ImGui::StyleColorsDark();
+		auto& style = ImGui::GetStyle();
+		style.Colors[ImGuiCol_WindowBg].w = 0.33f;
+		style.Colors[ImGuiCol_TitleBg].w = 0.33f;
 
 		ImGui_ImplWin32_Init(window_handle);
 
@@ -315,6 +324,45 @@ namespace rivet_hook {
 		return frame_context;
 	}
 
+	auto
+	ToggleCursor() -> void {
+		static RECT prevClip {};
+		static bool hiddenByUs = false;
+
+		CURSORINFO ci;
+		ci.cbSize = sizeof(ci);
+		if (!GetCursorInfo(&ci)) {
+			return;
+		}
+
+		const auto isCurrentlyShowing = (ci.flags & CURSOR_SHOWING) != 0;
+
+		if (imgui_intercept_input) {
+			if (isCurrentlyShowing) {
+				return;
+			}
+
+			SetCursor(LoadCursorA(nullptr, IDC_ARROW));
+			GetClipCursor(&prevClip);
+			ClipCursor(nullptr);
+
+			while (ShowCursor(true) < 0) { }
+
+			hiddenByUs = true;
+		} else {
+			if (!isCurrentlyShowing || !hiddenByUs) {
+				return;
+			}
+
+			SetCursor(nullptr);
+			ClipCursor(&prevClip);
+
+			while (ShowCursor(false) >= 0) { }
+
+			hiddenByUs = false;
+		}
+	}
+
 	auto STDMETHODCALLTYPE
 	present(IDXGISwapChain3 *pSwapChain, const UINT SyncInterval, const UINT flags) -> HRESULT {
 		if (g_pd3dCommandQueue == nullptr || bricked) {
@@ -338,7 +386,8 @@ namespace rivet_hook {
 		ImGui_ImplDX12_NewFrame();
 		ImGui_ImplWin32_NewFrame();
 		ImGui::NewFrame();
-		Overlay::draw_imgui();
+		ImGui::DockSpaceOverViewport(0, ImGui::GetMainViewport(), ImGuiDockNodeFlags_PassthruCentralNode);
+		Overlay::DrawImGUI();
 		ImGui::Render();
 
 		const UINT backBufferIdx = pSwapChain->GetCurrentBackBufferIndex();
@@ -380,8 +429,7 @@ namespace rivet_hook {
 
 	LRESULT APIENTRY
 	WndProc(HWND hWnd, const UINT msg, const WPARAM wParam, const LPARAM lParam) {
-		if (imgui_initialized) {
-			const auto &io = ImGui::GetIO();
+		if (imgui_initialized && imgui_intercept_input) {
 			ImGui_ImplWin32_WndProcHandler(hWnd, msg, wParam, lParam);
 			switch (msg) {
 				case WM_LBUTTONDBLCLK:
@@ -394,12 +442,12 @@ namespace rivet_hook {
 				case WM_MBUTTONDOWN:
 				case WM_MBUTTONUP:
 				case WM_MOUSEWHEEL:
-				case WM_MOUSEMOVE: return imgui_visible && io.WantCaptureMouse ? 0 : CallWindowProc(game_wnd_proc, hWnd, msg, wParam, lParam);
+				case WM_MOUSEMOVE:
 				case WM_KEYDOWN:
 				case WM_KEYUP:
 				case WM_SYSKEYDOWN:
 				case WM_SYSKEYUP:
-				case WM_CHAR: return imgui_visible && (io.WantCaptureKeyboard || io.WantTextInput) ? 0 : CallWindowProc(game_wnd_proc, hWnd, msg, wParam, lParam);
+				case WM_CHAR: return imgui_intercept_input ? 0 : CallWindowProc(game_wnd_proc, hWnd, msg, wParam, lParam);
 				default: break;
 			}
 		}
@@ -416,16 +464,27 @@ namespace rivet_hook {
 		if (auto *raw = static_cast<RAWINPUT *>(pData); pData && imgui_initialized && raw->header.dwType != RIM_TYPEHID) {
 			if (result > 0) {
 				if (raw->header.dwType == RIM_TYPEKEYBOARD &&
-					raw->data.keyboard.Flags & RI_KEY_BREAK &&
-					raw->data.keyboard.VKey == VK_F3) {
-					imgui_visible = !imgui_visible;
-					ShowCursor(imgui_visible);
-					SetCursor(imgui_visible ? LoadCursorA(nullptr, IDC_ARROW) : nullptr);
+					raw->data.keyboard.Flags & RI_KEY_BREAK) {
+					if (raw->data.keyboard.VKey == g_settings.overlay.toggle_key) {
+						imgui_visible = !imgui_visible;
+						imgui_intercept_input = imgui_visible;
+						ToggleCursor();
+					} else if (raw->data.keyboard.VKey == VK_ESCAPE && imgui_visible) {
+						imgui_visible = false;
+						imgui_intercept_input = false;
+						ToggleCursor();
+					} else if (raw->data.keyboard.VKey == g_settings.overlay.release_key && imgui_visible) {
+						imgui_intercept_input = !imgui_intercept_input;
+						ToggleCursor();
+					} else {
+						Overlay::HandleKeyPress(raw->data.keyboard.VKey);
+					}
+
 					return result;
 				}
 			}
 
-			if (const auto &io = ImGui::GetIO(); imgui_visible && (io.WantCaptureKeyboard || io.WantCaptureMouse || io.WantTextInput)) {
+			if (imgui_intercept_input) {
 				const auto old = raw->header;
 				memset(pData, 0, raw->header.dwSize);
 				raw->header = old;
@@ -436,7 +495,7 @@ namespace rivet_hook {
 	}
 
 	auto
-	Overlay::d3d12_init() -> void {
+	Overlay::D3D12Init() -> void {
 		g_output << "[overlay] loading dxgi and d3d12...\n";
 		g_output.flush();
 
@@ -458,6 +517,7 @@ namespace rivet_hook {
 	g_output << "[overlay] " msg "\n"; \
 	g_output.flush();                  \
 	destroy_window();                  \
+	g_settings.save();                 \
 	return
 
 		ComPtr<IDXGIFactory> dxgi_factory;
@@ -526,7 +586,7 @@ namespace rivet_hook {
 	}
 
 	auto
-	Overlay::d3d12_fini() -> void {
+	Overlay::D3D12Fini() -> void {
 		if (window_handle && game_wnd_proc) {
 			SetWindowLongPtr(window_handle, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(game_wnd_proc));
 		}
