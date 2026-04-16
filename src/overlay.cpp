@@ -141,6 +141,17 @@ namespace rivet_hook {
 
 	auto
 	reset() -> void {
+		if (g_pd3dCommandQueue && g_fence && g_fenceEvent) {
+			g_fenceLastSignaledValue++;
+			if (g_pd3dCommandQueue->Signal(g_fence, g_fenceLastSignaledValue) == S_OK) {
+				if (g_fence->GetCompletedValue() < g_fenceLastSignaledValue) {
+					if (g_fence->SetEventOnCompletion(g_fenceLastSignaledValue, g_fenceEvent) == S_OK) {
+						WaitForSingleObject(g_fenceEvent, INFINITE);
+					}
+				}
+			}
+		}
+
 		if (imgui_initialized) {
 			imgui_initialized = false;
 			ImGui_ImplDX12_Shutdown();
