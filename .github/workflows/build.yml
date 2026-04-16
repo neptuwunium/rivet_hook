@@ -14,6 +14,10 @@ on:
 jobs:
   build:
     runs-on: windows-latest
+    strategy:
+      matrix:
+        buildenv: [vs, mingw]
+        buildtype: [debug, release]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -24,13 +28,24 @@ jobs:
           python-version: '3.x'
 
       - name: Install Meson
-        run: pip install meson
+        run: pip install meson ninja
+
+      - name: Install NASM
+        run: choco install nasm
 
       - name: Setup MSBuild
+        if: matrix.buildenv == 'vs'
         uses: microsoft/setup-msbuild@v2
 
-      - name: Configure Hook
-        run: meson setup build . --buildtype release --debug --backend vs2022
+      # NOTE: build type release has a deadlock when the hook gets unloaded
+      # need to figure out why.
+      - name: Configure Hook (MSVC)
+        if: matrix.buildenv == 'vs'
+        run: meson setup build . --buildtype ${{ matrix.buildtype }} --debug --vsenv
+
+      - name: Configure Hook (MinGW)
+        if: matrix.buildenv == 'mingw'
+        run: meson setup build . --buildtype ${{ matrix.buildtype }} --debug
 
       - name: Compile Hook
         run: meson compile -C build -j 0
@@ -39,13 +54,17 @@ jobs:
         run: |
           mkdir -p build/rivet_hook
           mv build/rivet_hook.dll build/rivet_hook/
-          mv build/rivet_hook.pdb build/rivet_hook/
           mv build/subprojects/rivet_hid/hid.dll build/rivet_hook/
-          mv build/subprojects/rivet_hid/hid.pdb build/rivet_hook/
           mv build/subprojects/rivet_hid/hid_win10.dll build/rivet_hook/
+
+      - name: Move Debug Files
+        if: matrix.buildenv == 'vs'
+        run: |
+          mv build/rivet_hook.pdb build/rivet_hook/
+          mv build/subprojects/rivet_hid/hid.pdb build/rivet_hook/
           mv build/subprojects/rivet_hid/hid_win10.pdb build/rivet_hook/
 
       - uses: actions/upload-artifact@v4
         with:
-          name: 'rivet_hook'
+          name: 'rivet_hook-${{ matrix.buildtype }}-${{ matrix.buildenv }}'
           path: 'build/rivet_hook'

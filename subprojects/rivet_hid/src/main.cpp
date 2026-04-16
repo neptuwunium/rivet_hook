@@ -9,14 +9,15 @@
 #include <array>
 #include <cstdio>
 #include <fstream>
+#include <iomanip>
 #include <ostream>
 
 // this file does 2 things: it sets up the hid.dll trampolines, and it initializes the runtime.
 
 namespace {
 	std::array<FARPROC, 47> proc;
-	HINSTANCE h_library = nullptr;
-	HINSTANCE r_library = nullptr;
+	HINSTANCE hid_library = nullptr;
+	HINSTANCE rivet_library = nullptr;
 } // namespace
 
 auto WINAPI
@@ -30,81 +31,64 @@ HIDDllMain(const DWORD reason) -> BOOL {
 		char hid_path[MAX_PATH];
 		snprintf(hid_path, MAX_PATH - 1, "%s\\System32\\hid.dll", sys_root);
 
-		h_library = LoadLibraryA(hid_path);
-		if (h_library == nullptr) {
-			const auto err = GetLastError();
-			std::ofstream log;
-			log.open("./rivet.log");
-			log << "[rivet] cannot load rivet_hook.dll: " << std::hex << GetLastError();
-
-			LPVOID lpMsgBuf;
-			if (FormatMessageA(
-				FORMAT_MESSAGE_ALLOCATE_BUFFER |
-				FORMAT_MESSAGE_FROM_SYSTEM |
-				FORMAT_MESSAGE_IGNORE_INSERTS,
-				nullptr,
-				err,
-				MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
-				reinterpret_cast<LPTSTR>(&lpMsgBuf),
-				0, nullptr) > 0) {
-				log << " " << lpMsgBuf;
-			}
-			log << "\n";
-			log.flush();
+		hid_library = LoadLibraryA(hid_path);
+		if (hid_library == nullptr) {
+			exit(1);
+			return false;
 		}
 
-		proc[0] = GetProcAddress(h_library, "HidD_FlushQueue");
-		proc[1] = GetProcAddress(h_library, "HidD_FreePreparsedData");
-		proc[2] = GetProcAddress(h_library, "HidD_GetAttributes");
-		proc[3] = GetProcAddress(h_library, "HidD_GetConfiguration");
-		proc[4] = GetProcAddress(h_library, "HidD_GetFeature");
-		proc[5] = GetProcAddress(h_library, "HidD_GetHidGuid");
-		proc[6] = GetProcAddress(h_library, "HidD_GetIndexedString");
-		proc[7] = GetProcAddress(h_library, "HidD_GetInputReport");
-		proc[8] = GetProcAddress(h_library, "HidD_GetManufacturerString");
-		proc[9] = GetProcAddress(h_library, "HidD_GetMsGenreDescriptor");
-		proc[10] = GetProcAddress(h_library, "HidD_GetNumInputBuffers");
-		proc[11] = GetProcAddress(h_library, "HidD_GetPhysicalDescriptor");
-		proc[12] = GetProcAddress(h_library, "HidD_GetPreparsedData");
-		proc[13] = GetProcAddress(h_library, "HidD_GetProductString");
-		proc[14] = GetProcAddress(h_library, "HidD_GetSerialNumberString");
-		proc[15] = GetProcAddress(h_library, "HidD_Hello");
-		proc[16] = GetProcAddress(h_library, "HidD_SetConfiguration");
-		proc[17] = GetProcAddress(h_library, "HidD_SetFeature");
-		proc[18] = GetProcAddress(h_library, "HidD_SetNumInputBuffers");
-		proc[19] = GetProcAddress(h_library, "HidD_SetOutputReport");
-		proc[20] = GetProcAddress(h_library, "HidP_GetButtonArray");
-		proc[21] = GetProcAddress(h_library, "HidP_GetButtonCaps");
-		proc[22] = GetProcAddress(h_library, "HidP_GetCaps");
-		proc[23] = GetProcAddress(h_library, "HidP_GetData");
-		proc[24] = GetProcAddress(h_library, "HidP_GetExtendedAttributes");
-		proc[25] = GetProcAddress(h_library, "HidP_GetLinkCollectionNodes");
-		proc[26] = GetProcAddress(h_library, "HidP_GetScaledUsageValue");
-		proc[27] = GetProcAddress(h_library, "HidP_GetSpecificButtonCaps");
-		proc[28] = GetProcAddress(h_library, "HidP_GetSpecificValueCaps");
-		proc[29] = GetProcAddress(h_library, "HidP_GetUsageValue");
-		proc[30] = GetProcAddress(h_library, "HidP_GetUsageValueArray");
-		proc[31] = GetProcAddress(h_library, "HidP_GetUsages");
-		proc[32] = GetProcAddress(h_library, "HidP_GetUsagesEx");
-		proc[33] = GetProcAddress(h_library, "HidP_GetValueCaps");
-		proc[34] = GetProcAddress(h_library, "HidP_GetVersionInternal");
-		proc[35] = GetProcAddress(h_library, "HidP_InitializeReportForID");
-		proc[36] = GetProcAddress(h_library, "HidP_MaxDataListLength");
-		proc[37] = GetProcAddress(h_library, "HidP_MaxUsageListLength");
-		proc[38] = GetProcAddress(h_library, "HidP_SetButtonArray");
-		proc[39] = GetProcAddress(h_library, "HidP_SetData");
-		proc[40] = GetProcAddress(h_library, "HidP_SetScaledUsageValue");
-		proc[41] = GetProcAddress(h_library, "HidP_SetUsageValue");
-		proc[42] = GetProcAddress(h_library, "HidP_SetUsageValueArray");
-		proc[43] = GetProcAddress(h_library, "HidP_SetUsages");
-		proc[44] = GetProcAddress(h_library, "HidP_TranslateUsagesToI8042ScanCodes");
-		proc[45] = GetProcAddress(h_library, "HidP_UnsetUsages");
-		proc[46] = GetProcAddress(h_library, "HidP_UsageListDifference");
+		proc[0] = GetProcAddress(hid_library, "HidD_FlushQueue");
+		proc[1] = GetProcAddress(hid_library, "HidD_FreePreparsedData");
+		proc[2] = GetProcAddress(hid_library, "HidD_GetAttributes");
+		proc[3] = GetProcAddress(hid_library, "HidD_GetConfiguration");
+		proc[4] = GetProcAddress(hid_library, "HidD_GetFeature");
+		proc[5] = GetProcAddress(hid_library, "HidD_GetHidGuid");
+		proc[6] = GetProcAddress(hid_library, "HidD_GetIndexedString");
+		proc[7] = GetProcAddress(hid_library, "HidD_GetInputReport");
+		proc[8] = GetProcAddress(hid_library, "HidD_GetManufacturerString");
+		proc[9] = GetProcAddress(hid_library, "HidD_GetMsGenreDescriptor");
+		proc[10] = GetProcAddress(hid_library, "HidD_GetNumInputBuffers");
+		proc[11] = GetProcAddress(hid_library, "HidD_GetPhysicalDescriptor");
+		proc[12] = GetProcAddress(hid_library, "HidD_GetPreparsedData");
+		proc[13] = GetProcAddress(hid_library, "HidD_GetProductString");
+		proc[14] = GetProcAddress(hid_library, "HidD_GetSerialNumberString");
+		proc[15] = GetProcAddress(hid_library, "HidD_Hello");
+		proc[16] = GetProcAddress(hid_library, "HidD_SetConfiguration");
+		proc[17] = GetProcAddress(hid_library, "HidD_SetFeature");
+		proc[18] = GetProcAddress(hid_library, "HidD_SetNumInputBuffers");
+		proc[19] = GetProcAddress(hid_library, "HidD_SetOutputReport");
+		proc[20] = GetProcAddress(hid_library, "HidP_GetButtonArray");
+		proc[21] = GetProcAddress(hid_library, "HidP_GetButtonCaps");
+		proc[22] = GetProcAddress(hid_library, "HidP_GetCaps");
+		proc[23] = GetProcAddress(hid_library, "HidP_GetData");
+		proc[24] = GetProcAddress(hid_library, "HidP_GetExtendedAttributes");
+		proc[25] = GetProcAddress(hid_library, "HidP_GetLinkCollectionNodes");
+		proc[26] = GetProcAddress(hid_library, "HidP_GetScaledUsageValue");
+		proc[27] = GetProcAddress(hid_library, "HidP_GetSpecificButtonCaps");
+		proc[28] = GetProcAddress(hid_library, "HidP_GetSpecificValueCaps");
+		proc[29] = GetProcAddress(hid_library, "HidP_GetUsageValue");
+		proc[30] = GetProcAddress(hid_library, "HidP_GetUsageValueArray");
+		proc[31] = GetProcAddress(hid_library, "HidP_GetUsages");
+		proc[32] = GetProcAddress(hid_library, "HidP_GetUsagesEx");
+		proc[33] = GetProcAddress(hid_library, "HidP_GetValueCaps");
+		proc[34] = GetProcAddress(hid_library, "HidP_GetVersionInternal");
+		proc[35] = GetProcAddress(hid_library, "HidP_InitializeReportForID");
+		proc[36] = GetProcAddress(hid_library, "HidP_MaxDataListLength");
+		proc[37] = GetProcAddress(hid_library, "HidP_MaxUsageListLength");
+		proc[38] = GetProcAddress(hid_library, "HidP_SetButtonArray");
+		proc[39] = GetProcAddress(hid_library, "HidP_SetData");
+		proc[40] = GetProcAddress(hid_library, "HidP_SetScaledUsageValue");
+		proc[41] = GetProcAddress(hid_library, "HidP_SetUsageValue");
+		proc[42] = GetProcAddress(hid_library, "HidP_SetUsageValueArray");
+		proc[43] = GetProcAddress(hid_library, "HidP_SetUsages");
+		proc[44] = GetProcAddress(hid_library, "HidP_TranslateUsagesToI8042ScanCodes");
+		proc[45] = GetProcAddress(hid_library, "HidP_UnsetUsages");
+		proc[46] = GetProcAddress(hid_library, "HidP_UsageListDifference");
 	}
 
 	if (reason == DLL_PROCESS_DETACH) {
-		FreeLibrary(h_library);
-		h_library = nullptr;
+		FreeLibrary(hid_library);
+		hid_library = nullptr;
 		return 1;
 	}
 
@@ -114,10 +98,33 @@ HIDDllMain(const DWORD reason) -> BOOL {
 auto APIENTRY
 DllMain(HMODULE, const DWORD reason, LPVOID) -> BOOL {
 	if (reason == DLL_PROCESS_ATTACH) {
-		r_library = LoadLibraryA("rivet_hook.dll");
+		SetErrorMode(0);
+		rivet_library = LoadLibraryA("rivet_hook.dll");
+
+		if(rivet_library == nullptr) {
+			const auto err = GetLastError();
+			std::ofstream log;
+			log.open("./rivet.log");
+			log << "[rivet] cannot load rivet_hook.dll: " << std::hex << std::setfill('0') << std::setw(8) << "0x" << err;
+
+			LPSTR lpMsgBuf = nullptr;
+			if (FormatMessageA(
+				FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+				nullptr,
+				err,
+				MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+				reinterpret_cast<LPSTR>(&lpMsgBuf),
+				0, nullptr) > 0) {
+				log << " " << lpMsgBuf;
+				LocalFree(lpMsgBuf);
+			} else {
+				log << " can't get error message\n";
+			}
+			log.flush();
+		}
 	} else if (reason == DLL_PROCESS_DETACH) {
-		FreeLibrary(r_library);
-		r_library = nullptr;
+		FreeLibrary(rivet_library);
+		rivet_library = nullptr;
 	}
 
 	return HIDDllMain(reason);

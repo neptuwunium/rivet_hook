@@ -112,7 +112,7 @@ namespace rivet_hook {
 				memcpy(savedPosition, &actor->object->transform_matrix[3], sizeof(float) * 3);
 			}
 
-			if (ImGui::InputFloat3("Position", savedPosition)) {
+			if (ImGui::InputFloat3("Position", savedPosition) || ImGui::IsItemActive() || ImGui::IsItemActivated()) {
 				positionHandle = handle;
 			}
 
@@ -120,7 +120,7 @@ namespace rivet_hook {
 				memcpy(savedScale, &actor->object->scale, sizeof(float) * 3);
 			}
 
-			if (ImGui::InputFloat3("Scale", savedScale)) {
+			if (ImGui::InputFloat3("Scale", savedScale) || ImGui::IsItemActive() || ImGui::IsItemActivated()) {
 				scaleHandle = handle;
 			}
 

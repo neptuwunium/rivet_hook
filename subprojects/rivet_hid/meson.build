@@ -12,22 +12,19 @@ project('rivet_hid', 'cpp',
     meson_version: '>=1.2.1')
 
 ext = 'asm'
-asm_compiler = 'nasm'
-if build_machine.system() == 'windows'
-    ext = 'masm'
-    asm_compiler = 'masm'
+
+if not add_languages('nasm', native: false, required: true)
+    error('nasm not available')
 endif
 
-if not add_languages(asm_compiler, native: false, required: true)
-    error(asm_compiler + ' not available')
-endif
+args = meson.get_compiler('cpp').get_supported_arguments('-static-libgcc', '-static-libstdc++')
 
 shared_library('hid', [
         'src/main.cpp',
         'src/trampoline.' + ext
     ],
     name_prefix: '',
-    link_args: meson.get_compiler('cpp').get_supported_arguments('-static-libgcc', '-static-libstdc++'),
+    link_args: args,
     vs_module_defs: 'src/hid11.def',
 )
 
@@ -36,6 +33,6 @@ shared_library('hid_win10', [
         'src/trampoline.' + ext
     ],
     name_prefix: '',
-    link_args: meson.get_compiler('cpp').get_supported_arguments('-static-libgcc', '-static-libstdc++'),
+    link_args: args,
     vs_module_defs: 'src/hid10.def'
 )
