@@ -867,8 +867,6 @@ namespace rivet_hook {
 			*legacy_texture_loading = true;
 			*disable_directstorage = true;
 		}
-
-		g_settings.save();
 	}
 
 	auto

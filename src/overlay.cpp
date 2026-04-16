@@ -544,7 +544,6 @@ namespace rivet_hook {
 	g_output << "[overlay] " msg "\n"; \
 	g_output.flush();                  \
 	destroy_window();                  \
-	g_settings.save();                 \
 	return
 
 		ComPtr<IDXGIFactory> dxgi_factory;

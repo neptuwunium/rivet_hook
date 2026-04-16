@@ -498,6 +498,5 @@ namespace rivet_hook::ddl {
 		}
 
 		g_output.flush();
-		g_settings.save();
 	}
 } // namespace rivet_hook::ddl

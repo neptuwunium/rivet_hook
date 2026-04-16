@@ -45,8 +45,6 @@ if (tbl.contains(#group) && tbl.at(#group).is_table()) { \
 using toml_table = toml::basic_value<toml::ordered_type_config>::table_type;
 
 namespace rivet_hook {
-	std::mutex save_mutex;
-
 	auto
 	valid_fingerprint(Settings &settings) -> bool {
 		const auto dos = reinterpret_cast<PIMAGE_DOS_HEADER>(g_game_module);
@@ -137,14 +135,7 @@ namespace rivet_hook {
 
 	auto
 	Settings::save() const -> void {
-		std::lock_guard lock(save_mutex);
-
-		toml::basic_value<toml::ordered_type_config> tbl;
-		if (std::filesystem::exists(settings_name)) {
-			tbl = toml::parse<toml::ordered_type_config>(settings_name);
-		} else {
-			tbl = toml_table();
-		}
+		toml::basic_value<toml::ordered_type_config> tbl = toml_table();
 
 		CREATE_TABLE(utility);
 		CREATE_TABLE(overlay);
