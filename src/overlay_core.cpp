@@ -338,6 +338,5 @@ namespace rivet_hook {
 		}
 
 		CloseHandle(g_SpawnSignal);
-		D3D12Fini();
 	}
 } // namespace rivet_hook

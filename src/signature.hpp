@@ -85,8 +85,11 @@ namespace rivet_hook {
 	MAKE_SIGNATURE(ACTOR_ASSET_MANAGER, "48 8D 0D ?? ?? ?? ?? 48 8B 52 ?? E8 ?? ?? ?? ?? 48 8B D8")
 	MAKE_SIGNATURE(SPAWN_BOT, "48 85 D2 0F 84 ?? ?? ?? ?? 48 8B C4 48 89 58 ?? 48 89 70 ?? 48 89 78")
 	MAKE_SIGNATURE(LOAD_ACTOR_ASSET, "48 89 5C 24 ?? 48 89 6C 24 ?? 48 89 74 24 ?? 57 48 83 EC 30 49 8B F9 49 8B F0 48 8B DA")
+	MAKE_SIGNATURE(SWAPCHAIN_VTABLE, "48 8D 05 ?? ?? ?? ?? 48 89 01 66 C7 41 ?? 00 00 C6 41 ?? 00 48 83 C1 10")
 
 	constexpr uint32_t HERO_SYSTEM_ADDRESS = 0x3;
 	constexpr uint32_t SCENE_MANAGER_ADDRESS = 0x3;
 	constexpr uint32_t ACTOR_ASSET_MANAGER_ADDRESS = 0x3;
+	constexpr uint32_t SWAPCHAIN_VTABLE_ADDRESS = 0x3;
+	constexpr uint32_t SWAPCHAIN_VTABLE_DTOR = 0x0;
 } // namespace rivet_hook

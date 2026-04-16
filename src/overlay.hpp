@@ -16,9 +16,6 @@ namespace rivet_hook {
 		Fini() -> void;
 
 		static auto
-		D3D12Fini() -> void;
-
-		static auto
 		HandleKeyPress(int vk) -> void;
 
 		static auto

@@ -15,6 +15,7 @@
 #include "overlay.hpp"
 
 #include "runtime.hpp"
+#include "signature.hpp"
 
 extern IMGUI_IMPL_API LRESULT
 ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
@@ -103,6 +104,9 @@ namespace rivet_hook {
 	using resize_buffers_t = HRESULT(STDMETHODCALLTYPE *)(IDXGISwapChain *pSwapChain, UINT BufferCount, UINT Width, UINT Height, DXGI_FORMAT NewFormat, UINT SwapChainFlags);
 	resize_buffers_t game_resize_buffers = nullptr;
 	constexpr int32_t DXGI_SWAP_CHAIN_VTABLE_RESIZE_BUFFERS = 13;
+
+	using destroy_swapchain_t = void* (*)(void* self);
+	destroy_swapchain_t game_destroy_swapchain = nullptr;
 
 	WNDPROC game_wnd_proc = nullptr;
 
@@ -495,6 +499,12 @@ namespace rivet_hook {
 	}
 
 	auto
+	destroy_swapchain(void* self) -> void* {
+		reset();
+		return game_destroy_swapchain(self);
+	}
+
+	auto
 	Overlay::D3D12Init() -> void {
 		g_output << "[overlay] loading dxgi and d3d12...\n";
 		g_output.flush();
@@ -510,6 +520,12 @@ namespace rivet_hook {
 							   reinterpret_cast<LPVOID *>(&target)) == MH_OK) {
 			MH_EnableHook(target);
 		}
+
+		auto **swapchain_vtable = static_cast<LPVOID*>(load_rel_var(find_address(SWAPCHAIN_VTABLE_SIGNATURE), SWAPCHAIN_VTABLE_ADDRESS));
+		create_hook("SWAPCHAIN_VTABLE_DTOR",
+			swapchain_vtable[SWAPCHAIN_VTABLE_DTOR],
+			reinterpret_cast<LPVOID>(&destroy_swapchain),
+			reinterpret_cast<LPVOID *>(&game_destroy_swapchain));
 
 		using namespace Microsoft::WRL;
 
@@ -571,7 +587,7 @@ namespace rivet_hook {
 		g_output << "[overlay] overwriting D3D12CommandQueue vtable...\n";
 		g_output.flush();
 		auto **d3d12_command_queue_vtable = *reinterpret_cast<LPVOID ***>(d3d12_command_queue.Get());
-		create_hook("D3D12 ExecuteCommandLists",
+		create_hook("D3D12_COMMAND_QUEUE_VTABLE_EXECUTE_COMMAND_LISTS",
 					d3d12_command_queue_vtable[D3D12_COMMAND_QUEUE_VTABLE_EXECUTE_COMMAND_LISTS],
 					reinterpret_cast<LPVOID>(&execute_command_lists),
 					reinterpret_cast<LPVOID *>(&game_execute_command_lists));
@@ -579,18 +595,9 @@ namespace rivet_hook {
 		g_output << "[overlay] overwriting DXGISwapChain vtable...\n";
 		g_output.flush();
 		auto **dxgi_swap_chain_vtable = *reinterpret_cast<LPVOID ***>(dxgi_swap_chain.Get());
-		create_hook("DXGI Present", dxgi_swap_chain_vtable[DXGI_SWAP_CHAIN_VTABLE_PRESENT], reinterpret_cast<LPVOID>(&present), reinterpret_cast<LPVOID *>(&game_present));
-		create_hook("DXGI ResizeBuffers", dxgi_swap_chain_vtable[DXGI_SWAP_CHAIN_VTABLE_RESIZE_BUFFERS], reinterpret_cast<LPVOID>(&resize_buffers), reinterpret_cast<LPVOID *>(&game_resize_buffers));
+		create_hook("DXGI_SWAP_CHAIN_VTABLE_PRESENT", dxgi_swap_chain_vtable[DXGI_SWAP_CHAIN_VTABLE_PRESENT], reinterpret_cast<LPVOID>(&present), reinterpret_cast<LPVOID *>(&game_present));
+		create_hook("DXGI_SWAP_CHAIN_VTABLE_RESIZE_BUFFERS", dxgi_swap_chain_vtable[DXGI_SWAP_CHAIN_VTABLE_RESIZE_BUFFERS], reinterpret_cast<LPVOID>(&resize_buffers), reinterpret_cast<LPVOID *>(&game_resize_buffers));
 
 		CLEANUP("finished");
-	}
-
-	auto
-	Overlay::D3D12Fini() -> void {
-		if (window_handle && game_wnd_proc) {
-			SetWindowLongPtr(window_handle, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(game_wnd_proc));
-		}
-
-		reset();
 	}
 } // namespace rivet_hook
