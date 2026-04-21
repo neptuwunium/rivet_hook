@@ -1,0 +1,5 @@
+[wrap-file]
+directory = hid_hook-1.0.0
+source_url = https://github.com/neptuwunium/hid_hook/archive/refs/tags/v1.0.0.zip
+source_filename = hid_hook-1.0.0.zip
+source_hash = b3a811e26feed6e2db16b562a4241146510a45e2a0f431571f4361bd382fd8fb

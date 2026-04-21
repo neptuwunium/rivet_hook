@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: EUPL-1.2
 
-project('rivet', 'cpp',
+project('rivet_hook', 'cpp',
 	license: 'EUPL-1.2',
 	version: '1.1.0',
 	default_options: [
@@ -79,9 +79,11 @@ dxgi_dep = compiler.find_library('dxgi', required: true)
 d3d12_dep = compiler.find_library('d3d12', required: true)
 directxmath_dep = dependency('directxmath', version: '>= 2024.10.15.1')
 
-subproject('rivet_hid')
+subproject('hid_hook', default_options: {
+    'hook_name': meson.project_name()
+})
 
-rivet_hook = shared_library('rivet_hook', [
+shared_library(meson.project_name(), [
         'src/ddl.cpp',
         'src/main.cpp',
         'src/overlay.cpp',
