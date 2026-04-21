@@ -2,55 +2,12 @@
 #
 # SPDX-License-Identifier: EUPL-1.2
 
-# Prerequisites
-*.d
-
-# Compiled Object files
-*.slo
-*.lo
-*.o
-*.obj
-
-# Precompiled Headers
-*.gch
-*.pch
-
-# Compiled Dynamic libraries
-*.so
-*.dylib
-*.dll
-
-# Fortran module files
-*.mod
-*.smod
-
-# Compiled Static libraries
-*.lai
-*.la
-*.a
-*.lib
-!dstorage/lib/dstorage.lib
-
-# Executables
-*.exe
-*.out
-*.app
-
-# CMake Build Environment
-cmake-build-*
-/cmake
-/build
-vcs.xml
-
-/tmp
-
 .idea
 .vs
 .vscode
+.clangd
 
 subprojects/*
-!subprojects/directx
-!subprojects/rivet_hid
 !subprojects/packagefiles
 !subprojects/*.wrap
-.clangd
+!subprojects/*.wrap.license
