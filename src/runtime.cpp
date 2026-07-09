@@ -225,6 +225,16 @@ namespace rivet_hook {
 				return;
 			}
 
+			char module_name[MAX_PATH] = {0};
+			if (GetModuleFileNameA(g_game_module, module_name, sizeof(module_name)) > 0) {
+				std::string module_name_str = std::string(module_name);
+				if (module_name_str.ends_with("/crs-handler.exe") || module_name_str.ends_with("/crs-video.exe")) {
+					g_output << "[rivet] why am i crs handler!!\n";
+					return;
+				}
+			}
+			g_output << "[rivet] game = " << module_name << "\n";
+
 			g_settings = Settings::load();
 			g_settings.save();
 
@@ -282,9 +292,14 @@ namespace rivet_hook {
 			if (has_exited) {
 				return;
 			}
+
 			has_exited = true;
 
 			g_output << "[rivet] fini\n";
+
+			MH_DisableHook(MH_ALL_HOOKS);
+			MH_Uninitialize();
+
 			g_output.flush();
 			g_settings.save();
 
