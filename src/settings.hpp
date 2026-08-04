@@ -25,7 +25,7 @@ namespace rivet_hook {
 		} utility;
 
 		struct Overlay {
-			bool enabled = true;
+			bool enabled = false;
 			int toggle_key = VK_F3;
 			int spawn_debug_actor_key = VK_F4;
 			int release_key = VK_NUMPAD5;
