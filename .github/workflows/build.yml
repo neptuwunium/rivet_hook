@@ -54,15 +54,15 @@ jobs:
         run: |
           mkdir -p build/rivet_hook
           mv build/rivet_hook.dll build/rivet_hook/
-          mv build/subprojects/hid_hook-1.0.0/hid.dll build/rivet_hook/
-          mv build/subprojects/hid_hook-1.0.0/hid_win10.dll build/rivet_hook/
+          mv build/subprojects/hid_hook/hid.dll build/rivet_hook/
+          mv build/subprojects/hid_hook/hid_win10.dll build/rivet_hook/
 
       - name: Move Debug Files
         if: matrix.buildenv == 'vs'
         run: |
           mv build/rivet_hook.pdb build/rivet_hook/
-          mv build/subprojects/hid_hook-1.0.0/hid.pdb build/rivet_hook/
-          mv build/subprojects/hid_hook-1.0.0/hid_win10.pdb build/rivet_hook/
+          mv build/subprojects/hid_hook/hid.pdb build/rivet_hook/
+          mv build/subprojects/hid_hook/hid_win10.pdb build/rivet_hook/
 
       - uses: actions/upload-artifact@v4
         with:
