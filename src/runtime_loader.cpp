@@ -2,15 +2,13 @@
 //
 // SPDX-License-Identifier: EUPL-1.2
 
-#ifdef __MINGW64__
 #include <initguid.h>
-#endif
-
 #include <algorithm>
 #include <filesystem>
 #include <string>
 #include <unordered_map>
 #include <ranges>
+#include <utility>
 #include <dstorage.h>
 #include <wrl/client.h>
 
@@ -47,10 +45,24 @@ namespace rivet_hook {
 		std::filesystem::path original_path;
 		Microsoft::WRL::ComPtr<IDStorageFile> dstorageFile = nullptr;
 
-		explicit MemoryFile(const std::filesystem::path &path): original_path(path) {
-			file = CreateFileW(path.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+		explicit MemoryFile(std::filesystem::path path): original_path(std::move(path)) {
+			open();
+		}
+
+		MemoryFile(const MemoryFile &) = delete;
+		MemoryFile &
+		operator=(const MemoryFile &) = delete;
+
+		auto
+		open() -> void {
+			if (valid()) {
+				return;
+			}
+
+			file = CreateFileW(original_path.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
 			if (file == INVALID_HANDLE_VALUE) {
-				g_output << "[io] cannot open " << path.string() << " got " << GetLastError() << "\n";
+				g_output << "[io] cannot open " << original_path.string() << " got " << GetLastError() << "\n";
+				close();
 				return;
 			}
 
@@ -58,20 +70,17 @@ namespace rivet_hook {
 
 			map = CreateFileMapping(file, nullptr, PAGE_READONLY, 0, 0, nullptr);
 			if (map == INVALID_HANDLE_VALUE) {
-				g_output << "[io] cannot map " << path.string() << " got " << GetLastError() << "\n";
+				g_output << "[io] cannot map " << original_path.string() << " got " << GetLastError() << "\n";
+				close();
 				return;
 			}
 
 			buffer = static_cast<const uint8_t *>(MapViewOfFile(map, FILE_MAP_READ, 0, 0, 0));
 			if (buffer == nullptr) {
-				g_output << "[io] cannot pin " << path.string() << " got " << GetLastError() << "\n";
-				return;
+				g_output << "[io] cannot pin " << original_path.string() << " got " << GetLastError() << "\n";
+				close();
 			}
 		}
-
-		MemoryFile(const MemoryFile &) = delete;
-		MemoryFile &
-		operator=(const MemoryFile &) = delete;
 
 		[[nodiscard]] auto
 		valid() const -> bool {
@@ -100,6 +109,10 @@ namespace rivet_hook {
 
 		auto
 		get_dstorage(IDStorageFactory * factory) -> IDStorageFile * {
+			if (!valid()) {
+				return nullptr;
+			}
+
 			if (!factory) {
 				g_output << "[dstorage] cannot map " << original_path << " to dstorage, no factory\n";
 				g_output.flush();
@@ -107,9 +120,10 @@ namespace rivet_hook {
 			}
 
 			if (!dstorageFile) {
-				if (FAILED(factory->OpenFile(original_path.c_str(), IID_IDStorageFile, reinterpret_cast<void**>(dstorageFile.GetAddressOf())))) {
+				if (FAILED(factory->OpenFile(original_path.wstring().c_str(), IID_PPV_ARGS(&dstorageFile)))) {
 					g_output << "[dstorage] cannot map " << original_path << " to dstorage\n";
 					g_output.flush();
+					return nullptr;
 				}
 			}
 
