@@ -9,7 +9,6 @@
 #include <array>
 #include <cstdint>
 #include <psapi.h>
-#include <string_view>
 #include <vector>
 
 #include "signature_engine.hpp"

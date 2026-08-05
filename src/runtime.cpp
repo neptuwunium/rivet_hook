@@ -227,8 +227,7 @@ namespace rivet_hook {
 
 			char module_name[MAX_PATH] = {0};
 			if (GetModuleFileNameA(g_game_module, module_name, sizeof(module_name)) > 0) {
-				std::string module_name_str = std::string(module_name);
-				if (module_name_str.ends_with("/crs-handler.exe") || module_name_str.ends_with("/crs-video.exe")) {
+				if (const auto module_name_str = std::string(module_name); module_name_str.ends_with("/crs-handler.exe") || module_name_str.ends_with("/crs-video.exe")) {
 					g_output << "[rivet] why am i crs handler!!\n";
 					return;
 				}

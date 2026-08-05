@@ -858,10 +858,9 @@ namespace rivet_hook {
 		create_hook("ARCHIVEFS_READ_FILE", reinterpret_cast<LPVOID>(archivefs_vtable[ARCHIVEFS_VTABLE_READFILE]), reinterpret_cast<LPVOID>(&read_file), reinterpret_cast<LPVOID *>(&game_read_file));
 		create_hook("ARCHIVEFS_CLOSE_FILE", reinterpret_cast<LPVOID>(archivefs_vtable[ARCHIVEFS_VTABLE_CLOSEFILE]), reinterpret_cast<LPVOID>(&close_file), reinterpret_cast<LPVOID *>(&game_close_file));
 
-		// disable fencing
-		// NOTE: This bricks DirectStorage, need to find a workaround for "next gen" texture fencing.
+		// disable directstorage
 		if (g_settings.assets.disable_dstorage) {
-			// needed to reset fencing a second time once the game starts.
+			// needed to reset a second time once the game starts.
 			create_hook(WINDOW_INIT_RCRA_SIGNATURE, reinterpret_cast<LPVOID>(&window_init), reinterpret_cast<LPVOID *>(&game_window_init));
 
 			*legacy_texture_loading = true;

@@ -99,7 +99,7 @@ namespace rivet_hook {
 				LOAD_SETTING(assets, bool, enabled);
 				LOAD_SETTING(assets, bool, log);
 				LOAD_SETTING(assets, bool, verbose);
-				// LOAD_SETTING(assets, bool, disable_dstorage);
+				LOAD_SETTING(assets, bool, disable_dstorage);
 				LOAD_SETTING(assets, std::vector<std::string>, paths);
 
 				LOAD_SETTING(log, bool, cohtml);
