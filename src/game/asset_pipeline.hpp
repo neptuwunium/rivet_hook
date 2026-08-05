@@ -204,8 +204,8 @@ namespace rivet_hook::game {
 		NxDStorageWorkerEntry *buffers;
 		int32_t bufferSize;
 		int32_t bufferIndex;
-		NxDStorageWorkerEntry *first;
 		NxDStorageWorkerEntry *last;
+		NxDStorageWorkerEntry *first;
 		HANDLE updateSignal;
 		HANDLE resetSignal;
 		CRITICAL_SECTION lock;
@@ -218,8 +218,8 @@ namespace rivet_hook::game {
 	};
 
 	static_assert(sizeof(NxDStorageWorkerContext) == 0x88, "NxDStorageWorkerContext size mismatch");
-	static_assert(offsetof(NxDStorageWorkerContext, first) == 0x10, "NxDStorageWorkerContext first offset mismatch");
-	static_assert(offsetof(NxDStorageWorkerContext, last) == 0x18, "NxDStorageWorkerContext last offset mismatch");
+	static_assert(offsetof(NxDStorageWorkerContext, last) == 0x10, "NxDStorageWorkerContext last offset mismatch");
+	static_assert(offsetof(NxDStorageWorkerContext, first) == 0x18, "NxDStorageWorkerContext first offset mismatch");
 	static_assert(offsetof(NxDStorageWorkerContext, updateSignal) == 0x20, "NxDStorageWorkerContext updateSignal offset mismatch");
 	static_assert(offsetof(NxDStorageWorkerContext, lock) == 0x30, "NxDStorageWorkerContext lock offset mismatch");
 	static_assert(offsetof(NxDStorageWorkerContext, flushSignal) == 0x58, "NxDStorageWorkerContext flushSignal offset mismatch");
@@ -290,8 +290,7 @@ namespace rivet_hook::game {
 	using init_mips_t = HighMipData *(*) (TextureAsset * asset, HighMipData *data, int32_t numMips);
 	using get_storage_link_t = void *(*) (void *arg1, int64_t size, int32_t alignment);
 	using create_texture_resource_t = void *(*) (TextureAsset * asset, HighMipData *data);
-	using dstorage_flush_queue_t = void *(*) (NxDStorageWorkerContext * context);
-	using dstorage_enqueue_request_t = void(STDMETHODCALLTYPE *)(IDStorageQueue *self, const DSTORAGE_REQUEST *request);
-	using dstorage_create_context_t = NxDStorageWorkerContext *(*) (NxDStorageWorkerContext * self, void *callback, int32_t bufferSize, const char *name);
-	using dstorage_init_t = bool (*)(NxDStorage *self, ID3D12Device *device, NxDStorageConfig *config);
+	using dstorage_flush_queue_t = void* (*)(NxDStorageWorkerContext* context);
+	using dstorage_create_context_t = NxDStorageWorkerContext* (*)(NxDStorageWorkerContext* self, void* callback, int32_t bufferSize, const char* name);
+	using dstorage_init_t = HRESULT (WINAPI *)(REFIID riid, _COM_Outptr_ void** ppv);
 } // namespace rivet_hook::game

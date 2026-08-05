@@ -149,16 +149,16 @@ namespace rivet_hook::game {
 	struct TextureAsset {
 		Asset base;
 		uint8_t unknown1[0xC];
-		uint32_t maxLOD;
+		uint32_t resourceSize;
 		ID3D12Resource *resource;
 		uint8_t unknown2[0x7d];
-		uint8_t resourceSize;
+		uint8_t loadedLods;
 	};
 
 	offset_assert(TextureAsset, base.assetId, 0x8);
-	offset_assert(TextureAsset, maxLOD, 0x3c);
+	offset_assert(TextureAsset, resourceSize, 0x3c);
 	offset_assert(TextureAsset, resource, 0x40);
-	offset_assert(TextureAsset, resourceSize, 0xc5);
+	offset_assert(TextureAsset, loadedLods, 0xc5);
 
 	struct AssetManager {
 		void* vtable;
