@@ -1,5 +1,5 @@
 [wrap-file]
 directory = hid_hook
-source_url = https://codeberg.org/neptuwunium/hid_hook/archive/v1.0.1.zip
-source_filename = hid_hook-1.0.1.zip
-source_hash = 3b67575a74691b87136eb5bf7df2f96999bc7d2c81461487170ec5470050c008
+source_url = https://codeberg.org/neptuwunium/hid_hook/archive/v1.0.2.zip
+source_filename = hid_hook-1.0.2.zip
+source_hash = 637c3f0183c2294edec7e05954c72eec0a93f296c38a3d50ac383ea42fd16b4c

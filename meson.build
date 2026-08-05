@@ -78,6 +78,7 @@ dstorage_dep = dependency('directstorage', version: '= 1.2.2')
 dxgi_dep = compiler.find_library('dxgi', required: true)
 d3d12_dep = compiler.find_library('d3d12', required: true)
 directxmath_dep = dependency('directxmath', version: '>= 2024.10.15.1')
+threads_dep = dependency('threads')
 
 subproject('hid_hook', default_options: {
     'hook_name': meson.project_name()
@@ -103,7 +104,8 @@ shared_library(meson.project_name(), [
         imgui_dep,
         dxgi_dep,
         d3d12_dep,
-        directxmath_dep
+        directxmath_dep,
+        threads_dep,
     ],
     name_prefix: '',
     cpp_args: cpp_args
