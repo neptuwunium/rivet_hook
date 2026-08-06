@@ -15,13 +15,13 @@ jobs:
       matrix:
         buildenv: [vs, mingw]
         buildtype: [debug, release]
-        loader: [true, false]
+        hook_name: [rivet_hook, rivet_loader]
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: '3.x'
 
@@ -33,17 +33,17 @@ jobs:
 
       - name: Setup MSBuild
         if: matrix.buildenv == 'vs'
-        uses: microsoft/setup-msbuild@v2
+        uses: microsoft/setup-msbuild@v3
 
       # NOTE: build type release has a deadlock when the hook gets unloaded
       # need to figure out why.
       - name: Configure Hook (MSVC)
         if: matrix.buildenv == 'vs'
-        run: meson setup build . --buildtype ${{ matrix.buildtype }} --debug --vsenv
+        run: meson setup build . --buildtype ${{ matrix.buildtype }} --debug --vsenv -Dloader_only=${{ matrix.hook_name == 'rivet_loader' }}
 
       - name: Configure Hook (MinGW)
         if: matrix.buildenv == 'mingw'
-        run: meson setup build . --buildtype ${{ matrix.buildtype }} --debug -Dloader_only=${{ matrix.loader }}
+        run: meson setup build . --buildtype ${{ matrix.buildtype }} --debug -Dloader_only=${{ matrix.hook_name == 'rivet_loader' }}
 
       - name: Compile Hook
         run: meson compile -C build -j 0
@@ -62,14 +62,7 @@ jobs:
           mv build/subprojects/hid_hook/hid.pdb build/rivet_hook/
           mv build/subprojects/hid_hook/hid_win10.pdb build/rivet_hook/
 
-      - uses: actions/upload-artifact@v4
-        if: matrix.loader == 'false'
+      - uses: actions/upload-artifact@v7
         with:
-          name: 'rivet_hook-${{ matrix.buildtype }}-${{ matrix.buildenv }}'
-          path: 'build/rivet_hook'
-
-      - uses: actions/upload-artifact@v4
-        if: matrix.loader == 'true'
-        with:
-          name: 'rivet_loader-${{ matrix.buildtype }}-${{ matrix.buildenv }}'
+          name: '${{ matrix.hook_name}}-${{ matrix.buildtype }}-${{ matrix.buildenv }}'
           path: 'build/rivet_hook'
