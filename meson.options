@@ -1,0 +1,10 @@
+# SPDX-FileCopyrightText: 2025-2026 Neptuwunium
+#
+# SPDX-License-Identifier: EUPL-1.2
+
+option(
+    'loader_only',
+    type: 'boolean',
+    value: false,
+    description: 'Only build asset loader and utiltiies, skip overlay/ddl',
+)
