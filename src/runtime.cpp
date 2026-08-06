@@ -11,8 +11,11 @@
 #include <filesystem>
 #include <mutex>
 
+#ifndef RIVET_ONLY_LOADER
 #include "ddl.hpp"
 #include "overlay.hpp"
+#endif
+
 #include "runtime.hpp"
 #include "runtime_loader.hpp"
 #include "settings.hpp"
@@ -210,7 +213,11 @@ namespace rivet_hook {
 
 			g_output.open("./rivet.log");
 			g_output << "[rivet] init\n";
-			g_output << "[rivet] version " << RIVET_VERSION << "\n";
+			g_output << "[rivet] version " << RIVET_VERSION;
+
+			#ifdef RIVET_ONLY_LOADER
+			g_output << "+loader\n";
+			#endif
 
 			if (atexit(fini)) {
 				g_output << "[rivet] atexit cannot be registered\n";
@@ -225,10 +232,10 @@ namespace rivet_hook {
 				return;
 			}
 
-			char module_name[MAX_PATH] = {0};
+			char module_name[MAX_PATH] = {};
 			if (GetModuleFileNameA(g_game_module, module_name, sizeof(module_name)) > 0) {
-				std::string module_name_str = std::string(module_name);
-				if (module_name_str.ends_with("/crs-handler.exe") || module_name_str.ends_with("/crs-video.exe")) {
+				if (const auto module_name_str = std::string(module_name);
+					module_name_str.ends_with("/crs-handler.exe") || module_name_str.ends_with("/crs-video.exe")) {
 					g_output << "[rivet] why am i crs handler!!\n";
 					return;
 				}
@@ -247,8 +254,10 @@ namespace rivet_hook {
 				create_hook("CRASH_HANDLER", crash_handler, reinterpret_cast<LPVOID>(&null_func), nullptr);
 			}
 
-			Overlay::Init();
 			AssetLoader::init();
+
+			#ifndef RIVET_ONLY_LOADER
+			Overlay::Init();
 			g_output << "[rivet] starting ddl thread\n";
 			std::thread(ddl::dump).detach();
 
@@ -270,6 +279,7 @@ namespace rivet_hook {
 					}
 				}
 			}
+			#endif
 
 			if (g_settings.utility.attach_context_log) {
 				create_hook(CONTEXT_LOG_SIGNATURE, reinterpret_cast<LPVOID>(&context_log), reinterpret_cast<LPVOID *>(&game_context_log));
@@ -309,9 +319,11 @@ namespace rivet_hook {
 				FreeLibrary(g_renderdoc);
 			}
 
+			#ifndef RIVET_ONLY_LOADER
 			g_output << "[rivet] Overlay fini\n";
 			g_output.flush();
 			Overlay::Fini();
+			#endif
 			g_output << "[rivet] AssetLoader fini\n";
 			g_output.flush();
 			AssetLoader::fini();

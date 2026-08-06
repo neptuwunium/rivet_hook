@@ -91,30 +91,43 @@ subproject('hid_hook', default_options: {
     'hook_name': meson.project_name()
 })
 
-shared_library(meson.project_name(), [
+sources = [
+    'src/main.cpp',
+    'src/runtime.cpp',
+    'src/runtime_loader.cpp',
+    'src/settings.cpp',
+    'src/signature_engine.cpp',
+    'src/vk_enum.cpp',
+]
+
+deps = [
+    minhook_dep,
+    minizip_dep,
+    nlohmann_json_dep,
+    toml11_dep,
+    dstorage_dep,
+    threads_dep,
+]
+
+if not get_option('loader_only')
+    sources += [
         'src/ddl.cpp',
-        'src/main.cpp',
         'src/overlay.cpp',
         'src/overlay_core.cpp',
-        'src/runtime.cpp',
-        'src/runtime_loader.cpp',
-        'src/settings.cpp',
-        'src/signature_engine.cpp',
-        'src/vk_enum.cpp',
-    ],
-    link_args: compiler.get_supported_arguments('-static-libgcc', '-static-libstdc++'),
-    dependencies: [
-        minhook_dep,
-        minizip_dep,
-        nlohmann_json_dep,
-        toml11_dep,
-        dstorage_dep,
+    ]
+    deps += [
         imgui_dep,
         dxgi_dep,
         d3d12_dep,
         directxmath_dep,
-        threads_dep,
-    ],
+    ]
+else
+    cpp_args += ['-DRIVET_ONLY_LOADER']
+endif
+
+shared_library(meson.project_name(), sources,
+    link_args: compiler.get_supported_arguments('-static-libgcc', '-static-libstdc++'),
+    dependencies: deps,
     name_prefix: '',
     cpp_args: cpp_args
 )
