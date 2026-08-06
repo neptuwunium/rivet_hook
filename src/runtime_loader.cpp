@@ -4,17 +4,17 @@
 
 #include <algorithm>
 #include <filesystem>
+#include <ranges>
 #include <string>
 #include <unordered_map>
-#include <ranges>
 #include <utility>
 
 #include <MinHook.h>
 #include <minizip/mz.h>
-#include <minizip/mz_zip.h> // IWYU pragma: keep (needed by mz_zip_rw.h)
-#include <minizip/mz_strm.h> // IWYU pragma: keep (needed by mz_zip_rw.h)
-#include <minizip/mz_zip_rw.h>
 #include <minizip/mz_os.h>
+#include <minizip/mz_strm.h> // IWYU pragma: keep (needed by mz_zip_rw.h)
+#include <minizip/mz_zip.h>	 // IWYU pragma: keep (needed by mz_zip_rw.h)
+#include <minizip/mz_zip_rw.h>
 
 #include "game/asset_pipeline.hpp"
 #include "runtime.hpp"
@@ -36,10 +36,10 @@ namespace rivet_hook {
 		AssetLanguage language = AssetLanguage::None;
 		std::filesystem::path original_path;
 
-		explicit MemoryFile(std::filesystem::path path): original_path(std::move(path)) {}
+		explicit MemoryFile(std::filesystem::path path): original_path(std::move(path)) { }
 
 		auto
-		open(const uint8_t* data_buffer, const size_t data_size) -> bool {
+		open(const uint8_t *data_buffer, const size_t data_size) -> bool {
 			if (valid()) {
 				return true;
 			}
@@ -58,7 +58,7 @@ namespace rivet_hook {
 
 				GetFileSizeEx(file, reinterpret_cast<LARGE_INTEGER *>(&size));
 
-				if (size > 0x1fff'ffff) {
+				if (size > 0x1fffffff) {
 					g_output << "[io] " << original_path.string() << "is too big\n";
 					close();
 					return false;
@@ -293,10 +293,12 @@ namespace rivet_hook {
 	}
 
 	auto
-	populate_mod_asset(const std::filesystem::path &path, const std::string &game_path, AssetId asset_id, AssetType type, AssetLanguage lang, const uint8_t* buffer = nullptr, const size_t size = 0) -> void {
+	populate_mod_asset(const std::filesystem::path &path, const std::string &game_path, AssetId asset_id, AssetType type, AssetLanguage lang, const uint8_t *buffer = nullptr, const size_t size = 0)
+		-> void {
 		if (buffer == nullptr) {
 			const auto relative = std::filesystem::relative(path, std::filesystem::current_path()).string();
-			g_output << std::hex << "[loader] " << relative << " resolved to " << game_path << " with asset id " << asset_id << ", type " << static_cast<int32_t>(type) << ", language " << static_cast<int32_t>(lang) << "\n";
+			g_output << std::hex << "[loader] " << relative << " resolved to " << game_path << " with asset id " << asset_id << ", type " << static_cast<int32_t>(type) << ", language "
+					 << static_cast<int32_t>(lang) << "\n";
 		} else {
 			g_output << std::hex << "[loader] " << game_path << " resolved to asset id " << asset_id << ", type " << static_cast<int32_t>(type) << ", language " << static_cast<int32_t>(lang) << "\n";
 		}
@@ -452,7 +454,7 @@ namespace rivet_hook {
 	}
 
 	void
-	load_mod_asset_overstrike_stage_entry(const std::filesystem::path &path, void* zip, const mz_zip_file* file_info) {
+	load_mod_asset_overstrike_stage_entry(const std::filesystem::path &path, void *zip, const mz_zip_file *file_info) {
 		if (file_info->filename_size == 0) {
 			return;
 		}
@@ -467,7 +469,7 @@ namespace rivet_hook {
 			return;
 		}
 
-		if (file_info->uncompressed_size > 0x1fff'ffff) {
+		if (file_info->uncompressed_size > 0x1fffffff) {
 			g_output << "[assets/stage] file " << path.string() << "@" << entry_path.string() << " is too big\n";
 			return;
 		}
@@ -508,7 +510,7 @@ namespace rivet_hook {
 		}
 
 		const auto size = static_cast<int32_t>(file_info->uncompressed_size);
-		auto* buffer = new uint8_t[size];
+		auto *buffer = new uint8_t[size];
 		int32_t bytes_read = 0;
 		int32_t offset = 0;
 		do {
@@ -559,7 +561,6 @@ namespace rivet_hook {
 				g_output << "[assets/stage] end of " << path << ": " << std::dec << result << "\n";
 				continue;
 			}
-
 
 			result = mz_zip_reader_entry_open(zip);
 			if (result == MZ_OK) {
@@ -620,16 +621,16 @@ namespace rivet_hook {
 	auto
 	open_file(const intptr_t self, AssetFile *file, const AssetId asset_id, AssetType type, const int32_t platform, const uint8_t manager_id) -> void {
 		if (g_settings.log.loose_io) {
-			g_output << "[loose][open ] " << std::hex << asset_id << " type: " << static_cast<int32_t>(type) << " manager: " << static_cast<uint32_t>(manager_id) << " status: " << static_cast<uint32_t>(file->status)
-					 << " padding: " << file->padding << " data: " << file->data << " asset_id: " << file->asset_id << "\n";
+			g_output << "[loose][open ] " << std::hex << asset_id << " type: " << static_cast<int32_t>(type) << " manager: " << static_cast<uint32_t>(manager_id)
+					 << " status: " << static_cast<uint32_t>(file->status) << " padding: " << file->padding << " data: " << file->data << " asset_id: " << file->asset_id << "\n";
 			g_output.flush();
 		}
 
 		if (type < AssetType::Count) {
 			if (const auto *mod_file = find_mod_asset(asset_id, type); mod_file != nullptr) {
 				if (g_settings.assets.log) {
-					g_output << "[loose][open ] " << std::hex << asset_id << " type: " << static_cast<int32_t>(type) << " manager: " << static_cast<uint32_t>(manager_id) << " status: " << static_cast<uint32_t>(file->status)
-							 << " padding: " << file->padding << " data: " << file->data << " asset_id: " << file->asset_id << "\n";
+					g_output << "[loose][open ] " << std::hex << asset_id << " type: " << static_cast<int32_t>(type) << " manager: " << static_cast<uint32_t>(manager_id)
+							 << " status: " << static_cast<uint32_t>(file->status) << " padding: " << file->padding << " data: " << file->data << " asset_id: " << file->asset_id << "\n";
 					g_output.flush();
 				}
 
@@ -669,15 +670,15 @@ namespace rivet_hook {
 	auto
 	read_file(const intptr_t self, AssetFile *file, char *buffer, const size_t offset, const size_t size, const int32_t priority, const int32_t unknown2) -> bool {
 		if (g_settings.log.loose_io) {
-			g_output << "[loose][read ] offset: " << std::hex << offset << " size: " << size << " status: " << static_cast<uint32_t>(file->status) << " padding: " << file->padding << " data: " << file->data
-					 << " asset_id: " << file->asset_id << "\n";
+			g_output << "[loose][read ] offset: " << std::hex << offset << " size: " << size << " status: " << static_cast<uint32_t>(file->status) << " padding: " << file->padding
+					 << " data: " << file->data << " asset_id: " << file->asset_id << "\n";
 			g_output.flush();
 		}
 
 		if (const auto type = static_cast<AssetType>(file->data & 0xFF); (file->data & RIVET_SENTINEL) == RIVET_SENTINEL && type < AssetType::Count) {
 			if (g_settings.assets.log) {
-				g_output << "[loose][read ] offset: " << std::hex << offset << " size: " << size << " status: " << static_cast<uint32_t>(file->status) << " padding: " << file->padding << " data: " << file->data
-						 << " asset_id: " << file->asset_id << "\n";
+				g_output << "[loose][read ] offset: " << std::hex << offset << " size: " << size << " status: " << static_cast<uint32_t>(file->status) << " padding: " << file->padding
+						 << " data: " << file->data << " asset_id: " << file->asset_id << "\n";
 				g_output.flush();
 			}
 
@@ -957,16 +958,16 @@ namespace rivet_hook {
 		load_mod_assets();
 
 		#define LOAD_FUNC_ADDRESS_RAW(var, name, sig) \
-		if (var = find_address(sig); !var) { \
-		g_output << "[loader] cannot initialize, " name " address is not found\n"; \
-		return; \
-		}
+			if (var = find_address(sig); !var) { \
+				g_output << "[loader] cannot initialize, " name " address is not found\n"; \
+				return; \
+			}
 
 		#define LOAD_FUNC_ADDRESS(var, type, sig) \
-		if (var = reinterpret_cast<type>(find_address(sig)); !var) { \
-		g_output << "[loader] cannot initialize, " << sig.name << " address is not found\n"; \
-		return; \
-		}
+			if (var = reinterpret_cast<type>(find_address(sig)); !var) { \
+				g_output << "[loader] cannot initialize, " << sig.name << " address is not found\n"; \
+				return; \
+			}
 
 		#define LOAD_VAR_ADDRESS(var, type, sig, addr) \
 			if (var = reinterpret_cast<type>(load_rel_var(find_address(sig), addr)); !var) { \
@@ -974,7 +975,7 @@ namespace rivet_hook {
 				return; \
 			}
 
-		const auto * archivefs_vtable = static_cast<intptr_t*>(load_rel_var(find_address(ARCHIVEFS_VTABLE_SIGNATURE), ARCHIVEFS_VTABLE_ADDRESS));
+		const auto *archivefs_vtable = static_cast<intptr_t *>(load_rel_var(find_address(ARCHIVEFS_VTABLE_SIGNATURE), ARCHIVEFS_VTABLE_ADDRESS));
 		if (!archivefs_vtable) {
 			g_output << "[loader] cannot initialize, archivefs address is not found\n";
 			return;
@@ -997,15 +998,15 @@ namespace rivet_hook {
 		}
 
 		// vars we need to read/write to for reimpl_load_ops
-		LOAD_VAR_ADDRESS(game_load_ops, LoadOperation*, LOAD_OPS_SIGNATURE, LOAD_OPS_ADDRESS);
+		LOAD_VAR_ADDRESS(game_load_ops, LoadOperation *, LOAD_OPS_SIGNATURE, LOAD_OPS_ADDRESS);
 
 		// vars we need to call/read to for asset header creation
-		LOAD_VAR_ADDRESS(game_create_asset, create_asset_t*, CREATE_ASSET_RCRA_SIGNATURE, CREATE_ASSET_RCRA_ADDRESS);
-		LOAD_VAR_ADDRESS(game_create_asset_data, void*, CREATE_ASSET_DATA_RCRA_SIGNATURE, CREATE_ASSET_DATA_RCRA_ADDRESS);
+		LOAD_VAR_ADDRESS(game_create_asset, create_asset_t *, CREATE_ASSET_RCRA_SIGNATURE, CREATE_ASSET_RCRA_ADDRESS);
+		LOAD_VAR_ADDRESS(game_create_asset_data, void *, CREATE_ASSET_DATA_RCRA_SIGNATURE, CREATE_ASSET_DATA_RCRA_ADDRESS);
 
 		// vars we need to overwrite to disable texture fencing
-		LOAD_VAR_ADDRESS(disable_directstorage, bool*, DISABLE_DIRECTSTORAGE_RCRA_SIGNATURE, DISABLE_DIRECTSTORAGE_RCRA_ADDRESS);
-		LOAD_VAR_ADDRESS(legacy_texture_loading, bool*, LEGACY_TEXTURE_SIGNATURE, LEGACY_TEXTURE_ADDRESS);
+		LOAD_VAR_ADDRESS(disable_directstorage, bool *, DISABLE_DIRECTSTORAGE_RCRA_SIGNATURE, DISABLE_DIRECTSTORAGE_RCRA_ADDRESS);
+		LOAD_VAR_ADDRESS(legacy_texture_loading, bool *, LEGACY_TEXTURE_SIGNATURE, LEGACY_TEXTURE_ADDRESS);
 
 		// language tracking
 		LPVOID set_text_lang, set_audio_lang;
