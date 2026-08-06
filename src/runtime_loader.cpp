@@ -7,13 +7,20 @@
 #include <string>
 #include <unordered_map>
 #include <ranges>
+#include <utility>
 
 #include <MinHook.h>
+#include <minizip/mz.h>
+#include <minizip/mz_zip.h> // IWYU pragma: keep (needed by mz_zip_rw.h)
+#include <minizip/mz_strm.h> // IWYU pragma: keep (needed by mz_zip_rw.h)
+#include <minizip/mz_zip_rw.h>
+#include <minizip/mz_os.h>
 
 #include "game/asset_pipeline.hpp"
 #include "runtime.hpp"
 #include "runtime_loader.hpp"
 
+#include "mz_zip.h"
 #include "settings.hpp"
 #include "signature.hpp"
 
@@ -24,32 +31,63 @@ namespace rivet_hook {
 
 	struct MemoryFile {
 		const uint8_t *buffer = nullptr;
-		HANDLE map = INVALID_HANDLE_VALUE;
-		HANDLE file = INVALID_HANDLE_VALUE;
 		size_t size = 0;
+		bool is_stage = false;
 		AssetLanguage language = AssetLanguage::None;
 		std::filesystem::path original_path;
 
-		explicit MemoryFile(const std::filesystem::path &path): original_path(path) {
-			file = CreateFileW(path.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
-			if (file == INVALID_HANDLE_VALUE) {
-				g_output << "[io] cannot open " << path.string() << " got " << GetLastError() << "\n";
-				return;
+		explicit MemoryFile(std::filesystem::path path): original_path(std::move(path)) {}
+
+		auto
+		open(const uint8_t* data_buffer, const size_t data_size) -> bool {
+			if (valid()) {
+				return true;
 			}
 
-			GetFileSizeEx(file, reinterpret_cast<LARGE_INTEGER *>(&size));
+			is_stage = data_buffer != nullptr;
+			if (is_stage) {
+				buffer = data_buffer;
+				size = data_size;
+			} else {
+				const auto file = CreateFileW(original_path.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+				if (file == INVALID_HANDLE_VALUE) {
+					g_output << "[io] cannot open " << original_path.string() << " got " << GetLastError() << "\n";
+					close();
+					return false;
+				}
 
-			map = CreateFileMapping(file, nullptr, PAGE_READONLY, 0, 0, nullptr);
-			if (map == INVALID_HANDLE_VALUE) {
-				g_output << "[io] cannot map " << path.string() << " got " << GetLastError() << "\n";
-				return;
+				GetFileSizeEx(file, reinterpret_cast<LARGE_INTEGER *>(&size));
+
+				if (size > 0x1fff'ffff) {
+					g_output << "[io] " << original_path.string() << "is too big\n";
+					close();
+					return false;
+				}
+
+				const auto rw_buffer = new uint8_t[size];
+				DWORD bytes_read = 0;
+				DWORD offset = 0;
+				do {
+					if (!ReadFile(file, rw_buffer + offset, size - offset, &bytes_read, {})) {
+						g_output << "[io] cannot read " << original_path.string() << " got " << GetLastError() << "\n";
+						delete[] rw_buffer;
+						close();
+						return false;
+					}
+
+					offset += bytes_read;
+				} while (bytes_read > 0 && offset < size);
+
+				if (offset != size) {
+					delete[] rw_buffer;
+					close();
+					return false;
+				}
+
+				buffer = rw_buffer;
 			}
 
-			buffer = static_cast<const uint8_t *>(MapViewOfFile(map, FILE_MAP_READ, 0, 0, 0));
-			if (buffer == nullptr) {
-				g_output << "[io] cannot pin " << path.string() << " got " << GetLastError() << "\n";
-				return;
-			}
+			return true;
 		}
 
 		MemoryFile(const MemoryFile &) = delete;
@@ -58,24 +96,16 @@ namespace rivet_hook {
 
 		[[nodiscard]] auto
 		valid() const -> bool {
-			return buffer != nullptr && map != INVALID_HANDLE_VALUE && file != INVALID_HANDLE_VALUE && size > 0;
+			return buffer != nullptr;
 		}
 
 		auto
 		close() -> void {
+			size = 0;
+
 			if (buffer != nullptr) {
-				UnmapViewOfFile(buffer);
+				delete[] buffer;
 				buffer = nullptr;
-			}
-
-			if (map != INVALID_HANDLE_VALUE) {
-				CloseHandle(map);
-				map = INVALID_HANDLE_VALUE;
-			}
-
-			if (file != INVALID_HANDLE_VALUE) {
-				CloseHandle(file);
-				file = INVALID_HANDLE_VALUE;
 			}
 		}
 	};
@@ -263,9 +293,13 @@ namespace rivet_hook {
 	}
 
 	auto
-	populate_mod_asset(const std::filesystem::path &path, const std::string &game_path, AssetId asset_id, AssetType type, AssetLanguage lang) -> void {
-		g_output << std::hex << "[loader] " << path.string() << " resolved to " << game_path << " with asset id " << asset_id << ", type " << static_cast<int32_t>(type) << ", language "
-				 << static_cast<int32_t>(lang) << "\n";
+	populate_mod_asset(const std::filesystem::path &path, const std::string &game_path, AssetId asset_id, AssetType type, AssetLanguage lang, const uint8_t* buffer = nullptr, const size_t size = 0) -> void {
+		if (buffer == nullptr) {
+			const auto relative = std::filesystem::relative(path, std::filesystem::current_path()).string();
+			g_output << std::hex << "[loader] " << relative << " resolved to " << game_path << " with asset id " << asset_id << ", type " << static_cast<int32_t>(type) << ", language " << static_cast<int32_t>(lang) << "\n";
+		} else {
+			g_output << std::hex << "[loader] " << game_path << " resolved to asset id " << asset_id << ", type " << static_cast<int32_t>(type) << ", language " << static_cast<int32_t>(lang) << "\n";
+		}
 
 		auto &mod_list = mod_files_combined[static_cast<int32_t>(lang)][static_cast<int32_t>(type)];
 
@@ -285,7 +319,7 @@ namespace rivet_hook {
 		auto &created = it->second;
 		created.language = lang;
 
-		if (!created.valid()) {
+		if (!it->second.open(buffer, size) || !created.valid()) {
 			g_output << "[loader] " << path << " failed to init\n";
 			created.close();
 			mod_list.erase(asset_id);
@@ -334,7 +368,7 @@ namespace rivet_hook {
 				try {
 					asset_id = 0xE0000000'00000000 | std::stoul(relative_path.stem().string());
 				} catch (const std::exception &e) {
-					g_output << "could not parse asset id for path " << relative_path << ": " << e.what() << "\n";
+					g_output << "[assets/rivet] could not parse asset id for path " << relative_path << ": " << e.what() << "\n";
 					continue;
 				}
 			} else {
@@ -342,7 +376,7 @@ namespace rivet_hook {
 					try {
 						asset_id = std::stoull(relative_path.stem().string(), nullptr, 16);
 					} catch (const std::exception &e) {
-						g_output << "could not parse asset id for path " << relative_path << ": " << e.what() << "\n";
+						g_output << "[assets/rivet] could not parse asset id for path " << relative_path << ": " << e.what() << "\n";
 						continue;
 					}
 				} else {
@@ -375,17 +409,22 @@ namespace rivet_hook {
 			try {
 				directory_id = std::stoul(entry_path.filename().string());
 			} catch (const std::exception &e) {
-				g_output << "could not parse group id for path " << entry_path << ": " << e.what() << "\n";
+				g_output << "[assets/overstrike] could not parse group id for path " << entry_path << ": " << e.what() << "\n";
 				continue;
 			}
 
 			if (directory_id > 0xff) {
-				g_output << "group id for " << entry_path << " is malformed. skipping\n";
+				g_output << "[assets/overstrike] group id for " << entry_path << " is malformed. skipping\n";
 				continue;
 			}
 
 			const auto language = static_cast<AssetLanguage>(directory_id / 8);
 			const auto type = static_cast<AssetType>(directory_id % 8);
+
+			if (language >= AssetLanguage::Count || type >= AssetType::Count) {
+				g_output << "[assets/overstrike] group id for " << entry_path.string() << " is malformed. skipping\n";
+				return;
+			}
 
 			for (const auto &type_entry : std::filesystem::recursive_directory_iterator(entry_path)) {
 				if (!type_entry.is_regular_file()) {
@@ -400,7 +439,7 @@ namespace rivet_hook {
 					try {
 						asset_id = std::stoull(relative_path.filename().string(), nullptr, 16);
 					} catch (const std::exception &e) {
-						g_output << "could not parse asset id for path " << relative_path << ": " << e.what() << "\n";
+						g_output << "[assets/overstrike] could not parse asset id for path " << relative_path << ": " << e.what() << "\n";
 						continue;
 					}
 				} else {
@@ -412,6 +451,128 @@ namespace rivet_hook {
 		}
 	}
 
+	void
+	load_mod_asset_overstrike_stage_entry(const std::filesystem::path &path, void* zip, const mz_zip_file* file_info) {
+		if (file_info->filename_size == 0) {
+			return;
+		}
+
+		const std::filesystem::path entry_path(std::string(file_info->filename, file_info->filename_size));
+
+		if (mz_os_is_dir_separator(file_info->filename[file_info->filename_size - 1])) {
+			return;
+		}
+
+		if (!entry_path.has_parent_path()) {
+			return;
+		}
+
+		if (file_info->uncompressed_size > 0x1fff'ffff) {
+			g_output << "[assets/stage] file " << path.string() << "@" << entry_path.string() << " is too big\n";
+			return;
+		}
+
+		const auto first_part = *entry_path.begin();
+
+		uint32_t directory_id = 0;
+		try {
+			directory_id = std::stoul(first_part.string());
+		} catch (const std::exception &e) {
+			g_output << "[assets/stage] could not parse group id for path " << path.string() << "@" << entry_path.string() << ": " << e.what() << "\n";
+			return;
+		}
+
+		if (directory_id > 0xff) {
+			g_output << "[assets/stage] group id for " << path.string() << "@" << entry_path.string() << " is malformed. skipping\n";
+			return;
+		}
+
+		const auto language = static_cast<AssetLanguage>(directory_id / 8);
+		const auto type = static_cast<AssetType>(directory_id % 8);
+
+		if (language >= AssetLanguage::Count || type >= AssetType::Count) {
+			g_output << "[assets/stage] group id for " << path.string() << "@" << entry_path.string() << " is malformed. skipping\n";
+			return;
+		}
+
+		AssetId asset_id = 0;
+		if (entry_path.extension() == "") {
+			try {
+				asset_id = std::stoull(entry_path.filename().string(), nullptr, 16);
+			} catch (const std::exception &e) {
+				g_output << "[assets/stage] could not parse asset id for path " << path.string() << "@" << entry_path.string() << ": " << e.what() << "\n";
+				return;
+			}
+		} else {
+			game_create_asset_id(&asset_id, entry_path.string().c_str());
+		}
+
+		const auto size = static_cast<int32_t>(file_info->uncompressed_size);
+		auto* buffer = new uint8_t[size];
+		int32_t bytes_read = 0;
+		int32_t offset = 0;
+		do {
+			bytes_read = mz_zip_reader_entry_read(zip, buffer + offset, size - offset);
+
+			if (bytes_read > 0) {
+				offset += bytes_read;
+			} else if (bytes_read < 0) {
+				g_output << "[assets/stage] error reading entry " << path.string() << "@" << entry_path.string() << ": " << std::dec << bytes_read << "\n";
+				break;
+			}
+		} while (bytes_read > 0 && offset < size);
+
+		if (size == offset) {
+			populate_mod_asset(entry_path, entry_path.string(), asset_id, type, language, buffer, size);
+		} else {
+			delete[] buffer;
+		}
+	}
+
+	auto
+	load_mod_assets_overstrike_stage(const std::filesystem::path &path) -> void {
+		auto zip = mz_zip_reader_create();
+		if (!zip) {
+			g_output << "[assets/stage] could open stage file << " << path << ": unknown error\n";
+			return;
+		}
+
+		auto result = mz_zip_reader_open_file(zip, path.string().c_str());
+		if (result != MZ_OK) {
+			g_output << "[assets/stage] could open stage file " << path << ": " << std::dec << result << "\n";
+			mz_zip_reader_delete(&zip);
+			return;
+		}
+
+		result = mz_zip_reader_goto_first_entry(zip);
+		if (result != MZ_OK) {
+			g_output << "[assets/stage] error processing stage file " << path << ": " << std::dec << result << "\n";
+			mz_zip_reader_delete(&zip);
+			return;
+		}
+
+		while (result == MZ_OK) {
+			mz_zip_file *file_info = nullptr;
+			result = mz_zip_reader_entry_get_info(zip, &file_info);
+
+			if (result != MZ_OK || file_info == nullptr) {
+				g_output << "[assets/stage] end of " << path << ": " << std::dec << result << "\n";
+				continue;
+			}
+
+
+			result = mz_zip_reader_entry_open(zip);
+			if (result == MZ_OK) {
+				load_mod_asset_overstrike_stage_entry(path, zip, file_info);
+				mz_zip_reader_entry_close(zip);
+			}
+
+			result = mz_zip_reader_goto_next_entry(zip);
+		}
+
+		mz_zip_reader_delete(&zip);
+	}
+
 	auto
 	load_mod_assets() -> void {
 		const auto cwd = std::filesystem::current_path();
@@ -421,6 +582,12 @@ namespace rivet_hook {
 
 			if (!path.is_absolute()) {
 				path = cwd / path;
+			}
+
+			if (std::filesystem::is_regular_file(path) && path.extension() == ".stage") {
+				g_output << "[loader] mod path " << entry << " is overstrike stage format.\n";
+				load_mod_assets_overstrike_stage(path);
+				continue;
 			}
 
 			if (!std::filesystem::is_directory(path)) {
@@ -687,7 +854,7 @@ namespace rivet_hook {
 			}
 
 			if (!asset || asset->header == -1) {
-				// here in case of crash becasue i haven't seen this yet
+				// here in case of crash because i haven't seen this yet
 				// there's 3 different ways it fails early prior to this so if it happens here something really bad happened
 
 				g_output << "[built] invalid path " << std::hex << assetId << "\n";

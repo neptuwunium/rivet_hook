@@ -7,7 +7,8 @@ project('rivet_hook', 'cpp',
 	version: '1.1.1',
 	default_options: [
 		'prefix=/usr',
-		'cpp_std=c++20'
+		'cpp_std=c++20',
+        'default_library=static',
 	],
     meson_version: '>=1.2.1')
 
@@ -54,6 +55,12 @@ cpp_args = compiler.get_supported_arguments(
 )
 
 minhook_dep = dependency('minhook', version: '>= 1.3.3')
+minizip_dep = dependency('minizip-ng', version: '>= 4.0.0', required: false)
+if not minizip_dep.found()
+    minizip_dep = subproject('minizip-ng', default_options: {
+        'zlib': 'enabled'
+    }, required: true).get_variable('minizip_ng_dep')
+endif
 
 nlohmann_json_dep = dependency('', required: false)
 if not compiler.check_header('nlohmann/json.hpp')
@@ -98,6 +105,7 @@ shared_library(meson.project_name(), [
     link_args: compiler.get_supported_arguments('-static-libgcc', '-static-libstdc++'),
     dependencies: [
         minhook_dep,
+        minizip_dep,
         nlohmann_json_dep,
         toml11_dep,
         dstorage_dep,
