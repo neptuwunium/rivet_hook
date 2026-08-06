@@ -474,6 +474,11 @@ namespace rivet_hook {
 			return;
 		}
 
+		if (entry_path.begin() == entry_path.end()) {
+			g_output << "[assets/stage] file " << path.string() << "@" << entry_path.string() << " is too shallow\n";
+			return;
+		}
+
 		const auto first_part = *entry_path.begin();
 
 		uint32_t directory_id = 0;
@@ -525,7 +530,7 @@ namespace rivet_hook {
 		} while (bytes_read > 0 && offset < size);
 
 		if (size == offset) {
-			populate_mod_asset(entry_path, entry_path.string(), asset_id, type, language, buffer, size);
+			populate_mod_asset(entry_path,  entry_path.lexically_relative(*entry_path.begin()).string(), asset_id, type, language, buffer, size);
 		} else {
 			delete[] buffer;
 		}
