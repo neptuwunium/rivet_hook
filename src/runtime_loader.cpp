@@ -503,6 +503,7 @@ namespace rivet_hook {
 		}
 
 		AssetId asset_id = 0;
+		const auto final_path = entry_path.lexically_relative(*entry_path.begin()).string();
 		if (entry_path.extension() == "") {
 			try {
 				asset_id = std::stoull(entry_path.filename().string(), nullptr, 16);
@@ -511,7 +512,7 @@ namespace rivet_hook {
 				return;
 			}
 		} else {
-			game_create_asset_id(&asset_id, entry_path.string().c_str());
+			game_create_asset_id(&asset_id, final_path.c_str());
 		}
 
 		const auto size = static_cast<int32_t>(file_info->uncompressed_size);
@@ -530,7 +531,7 @@ namespace rivet_hook {
 		} while (bytes_read > 0 && offset < size);
 
 		if (size == offset) {
-			populate_mod_asset(entry_path,  entry_path.lexically_relative(*entry_path.begin()).string(), asset_id, type, language, buffer, size);
+			populate_mod_asset(entry_path, final_path, asset_id, type, language, buffer, size);
 		} else {
 			delete[] buffer;
 		}
