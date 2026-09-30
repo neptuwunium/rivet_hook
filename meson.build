@@ -4,7 +4,7 @@
 
 project('rivet_hook', 'cpp',
 	license: 'EUPL-1.2',
-	version: '1.1.1',
+	version: '2.0.0',
 	default_options: [
 		'prefix=/usr',
 		'cpp_std=c++20',
