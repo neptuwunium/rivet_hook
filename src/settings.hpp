@@ -22,6 +22,8 @@ namespace rivet_hook {
 			bool attach_context_log = false;
 			bool attach_log = false;
 			bool unpause_focus = false;
+			// with unpause_focus, keep reading keyboard and mouse while alt tabbed
+			bool unpause_input = false;
 		} utility;
 
 		struct Overlay {
@@ -37,6 +39,32 @@ namespace rivet_hook {
 			bool dump_components = false;
 			bool debug_ddl = false;
 		} ddl;
+
+		struct Bridge {
+			bool enabled = false;
+			std::string pipe_name { "rivet_hook" };
+		} bridge;
+
+		struct Scripts {
+			bool enabled = false;
+			std::string path { "scripts" };
+			int reload_key = VK_F6;
+			// wall clock cap for one callback, in milliseconds. everything lua runs
+			// runs on the render thread, so this is the stutter budget.
+			int budget_ms = 8;
+			// how many vm instructions between budget checks
+			int check_interval = 10000;
+			// consecutive failures before a callback is switched off
+			int error_limit = 3;
+		} scripts;
+
+		struct HeroLook {
+			// the last look put on the hero, "" once it was taken off again
+			std::string path;
+			bool anims = false;
+			// put that look back on once the hero first appears after a launch
+			bool apply_on_launch = false;
+		} hero_look;
 
 		struct RenderDoc {
 			bool enabled = false;
@@ -64,6 +92,10 @@ namespace rivet_hook {
 			std::string fingerprint;
 			std::map<std::string, std::vector<intptr_t>> addresses;
 		} address_cache;
+
+		// set when rivet.toml exists but could not be read. saving would replace the
+		// user's file with defaults, so save() leaves it alone instead.
+		bool read_failed = false;
 
 		static auto
 		load() -> Settings;

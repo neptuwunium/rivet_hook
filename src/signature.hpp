@@ -33,6 +33,13 @@ namespace rivet_hook {
 	// util
 	MAKE_SIGNATURE(REL_NXEXCEPTION_VTABLE, "48 8D 05 ?? ?? ?? ?? 48 8B F1 48 89 01 8B FA 48 8B")
 	MAKE_SIGNATURE(UNPAUSE_FOCUS, "48 83 EC 28 8B 41 ?? 85 C0 74")
+	// the platform's "running in the background" query. polled once a frame; while
+	// it answers true gameplay time is held at zero and the pads are paused
+	MAKE_SIGNATURE(UNPAUSE_BACKGROUND, "40 53 48 83 EC 20 E8 ?? ?? ?? ?? 48 8B C8 48 8B 10 FF 52 68 84 C0 0F 94 C3 E8 ?? ?? ?? ?? 48 8B C8 48 8B 10 FF 52 78 0A C3")
+
+	// the callback the frame hands to the actor update, run on the game thread
+	// between update passes as (pass, phase)
+	MAKE_SIGNATURE(ACTOR_UPDATE_PASS_RUNNING, "83 F9 01 0F 85 ?? ?? ?? ?? 53 48 83 EC 20 80 3D ?? ?? ?? ?? 00 8B DA 75 ?? 85 D2 74 ?? 3B D1")
 
 	constexpr uint32_t NXEXCEPTION_VTABLE_ADDRESS = 0x3;
 	constexpr uint32_t NXEXCEPTION_VTABLE_INIT = 0x1;
@@ -79,6 +86,9 @@ namespace rivet_hook {
 	constexpr uint32_t REL_SET_TEXT_LANGUAGE_ADDRESS = 0x1;
 	constexpr uint32_t REL_SET_AUDIO_LANGUAGE_ADDRESS = 0xC;
 
+	// (scene, out handle, uid) -> out. the engine's own probe of the uid table
+	MAKE_SIGNATURE(ACTOR_HANDLE_BY_UID, "40 53 48 83 EC 20 48 8B DA C7 02 00 00 00 00 49 8B D0 48 81 C1 D0 74 00 00 E8")
+
 	// actor overlay stuff
 	MAKE_SIGNATURE(HERO_SYSTEM, "48 8D 0D ?? ?? ?? ?? E8 ?? ?? ?? ?? 33 FF 40 38 B8")
 	MAKE_SIGNATURE(SCENE_MANAGER, "48 8D 0D ?? ?? ?? ?? E8 ?? ?? ?? ?? 48 63 75")
@@ -86,6 +96,187 @@ namespace rivet_hook {
 	MAKE_SIGNATURE(SPAWN_BOT, "48 85 D2 0F 84 ?? ?? ?? ?? 48 8B C4 48 89 58 ?? 48 89 70 ?? 48 89 78")
 	MAKE_SIGNATURE(LOAD_ACTOR_ASSET, "48 89 5C 24 ?? 48 89 6C 24 ?? 48 89 74 24 ?? 57 48 83 EC 30 49 8B F9 49 8B F0 48 8B DA")
 	MAKE_SIGNATURE(SWAPCHAIN_VTABLE, "48 8D 05 ?? ?? ?? ?? 48 89 01 66 C7 41 ?? 00 00 C6 41 ?? 00 48 83 C1 10")
+
+	// events. (event system, namehash, sender, targets, target count, exclude targets,
+	// position, locator hash, broadcast, radius, delay, ddl data, strings) -> event
+	MAKE_SIGNATURE(QUEUE_EVENT, "48 89 5C 24 08 48 89 6C 24 10 48 89 74 24 18 57 41 56 41 57 48 81 EC 80 00 00 00 48 8B E9 0F 29 74 24 70 48 81 C1 ?? ?? ?? ?? 4D 8B F9 41 8B D8")
+	// the frame allocation QueueEvent and one sibling make, both through the global
+	// event system. matches twice, both loading the same address
+	MAKE_SIGNATURE(EVENT_SYSTEM, "48 8B 7F 20 48 8D 0D ?? ?? ?? ?? 0F 57 C0 0F 2F F0 8B 57 14")
+
+	constexpr uint32_t EVENT_SYSTEM_ADDRESS = 0x7;
+
+	// time scale. (system, channel, scale, ramp, context, fx type)
+	MAKE_SIGNATURE(SET_CHANNEL_TIME_SCALE, "83 FA 18 0F 87 ?? ?? ?? ?? 57 48 83 EC 40 0F 29 74 24 30 48 8B F9 0F 29 7C 24 20 0F 28 F3")
+	// (system, channel). also drops the components driving that channel
+	MAKE_SIGNATURE(CLEAR_CHANNEL_TIME_SCALE, "48 89 5C 24 08 57 48 83 EC 50 48 63 DA 48 8B F9 83 FB 18 0F 87")
+	// a gameplay call site that sets the game channel through the global system
+	MAKE_SIGNATURE(TIME_SCALE_SYSTEM, "48 8D 0D ?? ?? ?? ?? 45 33 C0 C7 83 ?? ?? ?? ?? 00 00 80 3F E8")
+
+	constexpr uint32_t TIME_SCALE_SYSTEM_ADDRESS = 0x3;
+
+	// camera. the graphics settings apply stores the fov slider into the camera
+	// system twice; the second store is the multiplier the view is built with
+	MAKE_SIGNATURE(CAMERA_FOV_SCALE, "F3 0F 59 05 ?? ?? ?? ?? 89 35 ?? ?? ?? ?? F3 0F 11 05 ?? ?? ?? ?? F3 0F 11 05 ?? ?? ?? ??")
+
+	constexpr uint32_t CAMERA_FOV_SCALE_ADDRESS = 0x1A;
+
+	// two gameplay reads of a camera matrix through the global camera system. both
+	// matches load the same address
+	MAKE_SIGNATURE(CAMERA_SYSTEM, "48 8D 0D ?? ?? ?? ?? F2 0F 10 00 F2 0F 11 44 24 3C")
+
+	constexpr uint32_t CAMERA_SYSTEM_ADDRESS = 0x3;
+
+	// hud. (player hud, type, message, duration, sub message, prompt, pause tab, icon)
+	MAKE_SIGNATURE(HUD_SHOW_MESSAGE, "40 53 48 83 EC 50 0F 29 74 24 40 49 8B D8 0F 28 F3 E8 ?? ?? ?? ?? 48 85 C0 74 ?? 80 3D")
+	// the level script action that shows a hud message. it fetches the player hud
+	// through the getter it calls first
+	MAKE_SIGNATURE(HUD_MESSAGE_ACTION, "48 85 C9 0F 84 ?? ?? ?? ?? 53 48 81 EC 00 03 00 00 48 8B DA 48 89 BC 24 10 03 00 00 E8")
+
+	// the "messages enabled" option ShowMessage checks, a byte compared to zero
+	constexpr uint32_t HUD_SHOW_MESSAGE_ENABLED_ADDRESS = 0x1D;
+	constexpr uint32_t HUD_SHOW_MESSAGE_ENABLED_END = 0x22;
+	constexpr uint32_t HUD_MESSAGE_ACTION_GET_HUD = 0x1C;
+
+	// vanity. (VanityInventoryManager, bundle asset id, hero type) -> any item newly equipped
+	MAKE_SIGNATURE(VANITY_EQUIP_BUNDLE, "48 89 54 24 10 48 89 4C 24 08 55 56 57 41 54 48 8D 6C 24 C1 48 81 EC B8 00 00 00 45 8B E0 48 8B FA 41 B8 04 00 00 00 48 8B F1 E8")
+	// (VanityInventoryManager, bundle asset id, hero type) -> whether it is owned
+	MAKE_SIGNATURE(VANITY_HAS_BUNDLE, "40 55 56 41 56 41 57 48 83 EC 28 41 8B F0 4C 8B F1 41 83 F8 04 75 03 8B 71 48")
+
+	// hero look. TransformationManager::HandleTransformationEvent, the engine's own
+	// whole-body model swap: it looks the target actor asset up, creates a scene
+	// object from it and switches the actor's ModelInst to that object's model
+	MAKE_SIGNATURE(TRANSFORMATION_HANDLE_EVENT, "40 53 55 57 48 83 EC 30 48 8B 01 48 8B DA 8B AA 38 01 00 00 48 8B F9 FF 50 50 3B E8 0F 84")
+	// HeroTransformationManager::OnTransformationPostActivate (component, asset).
+	// rebuilds the actor's HeroSkinManager for the hero type its HeroConfigManager
+	// holds, from a stack prius, through ReinitializeComponentFromPrius
+	MAKE_SIGNATURE(HERO_TRANSFORMATION_POST_ACTIVATE, "48 89 5C 24 08 57 48 83 EC 30 48 8B D9 48 8D 3D ?? ?? ?? ?? 48 89 7C 24 20 48 8D 4C 24 20 E8 ?? ?? ?? ?? 90 48 8B 4B 10 48 8D 15")
+	// TransformationManager::FinalizeTransformation. its anim block swaps the anim
+	// sets for the new asset's AnimControllerComponentPrius
+	MAKE_SIGNATURE(TRANSFORMATION_FINALIZE, "48 89 4C 24 08 55 53 56 57 41 54 41 55 41 56 41 57 48 8D AC 24 F8 FE FF FF 48 81 EC 08 02 00 00 48 8B F1 80 B9 98 01 00 00 00")
+	// a gameplay load of a model by id through the global model manager:
+	// lea g_ModelManager, then ModelManager::LoadModel (manager, const AssetId &,
+	// loaded from, load info) -> Model, the default cube when it cannot be made
+	MAKE_SIGNATURE(MODEL_MANAGER_LOAD, "48 8D 0D ?? ?? ?? ?? E8 ?? ?? ?? ?? 48 89 03 FF C5 8B 87 A4 02 00 00 3B E8 72")
+	// AssetManagerBase::ReleaseAsset (manager, asset) -> bool. the manager's default
+	// asset (+0x88) is not reference counted
+	MAKE_SIGNATURE(ASSET_MANAGER_RELEASE, "48 89 5C 24 08 57 48 83 EC 20 48 8B DA 48 8B F9 8B 15 ?? ?? ?? ?? 48 83 79 40 00 74 ?? 48 85 DB 74 ?? 48 3B 99 88 00 00 00")
+
+	constexpr uint32_t MODEL_MANAGER_ADDRESS = 0x3;
+	constexpr uint32_t MODEL_MANAGER_LOAD_ADDRESS = 0x8;
+
+	// SkinManagerBase::RemoveAllSkinItemsByPart (skin manager)
+	MAKE_SIGNATURE(SKIN_REMOVE_ALL_ITEMS, "40 56 57 41 54 48 83 EC 30 44 8B 61 4C 33 F6 48 8B F9 45 85 E4 0F 84")
+
+	// (actor asset manager, asset id) -> loaded actor asset or null
+	constexpr uint32_t TRANSFORMATION_ACTOR_ASSETS_ADDRESS = 0x95;
+	constexpr uint32_t TRANSFORMATION_LOOKUP_ACTOR_ASSET_ADDRESS = 0x9D;
+	// (handle *) -> ModelInst or null
+	constexpr uint32_t TRANSFORMATION_RESOLVE_MODEL_INST_ADDRESS = 0xE2;
+	// (scene, out handle *, object asset name, scene object, 0), both from the actor asset
+	constexpr uint32_t TRANSFORMATION_CREATE_SCENE_OBJECT_ADDRESS = 0x107;
+	// (ModelInst, Model, deferred)
+	constexpr uint32_t TRANSFORMATION_SWITCH_MODEL_ADDRESS = 0x12B;
+	// (ModelInst)
+	constexpr uint32_t TRANSFORMATION_DESTROY_MODEL_INST_ADDRESS = 0x133;
+	// the HeroSkinManagerPrius vtable, its ComponentClassInfo, and
+	// ReinitializeComponentFromPrius (component, class info, prius)
+	constexpr uint32_t HERO_POST_ACTIVATE_PRIUS_VTABLE_ADDRESS = 0x10;
+	constexpr uint32_t HERO_POST_ACTIVATE_SKIN_CLASS_ADDRESS = 0x61;
+	constexpr uint32_t HERO_POST_ACTIVATE_REINIT_ADDRESS = 0x69;
+	// inside FinalizeTransformation: the AnimControllerComponent class info,
+	// Alloc::ScratchRestore's constructor and destructor, CreateComponentPrius
+	// (manager, out prius, out type info, class info, actor asset), the prius's
+	// anim set id accessor (prius, scratch, index) -> id *, and the anim
+	// controller's RemoveAnimSet (controller, id, flag, unique id) and
+	// PushAnimSet (controller, out, id, flags, 0)
+	constexpr uint32_t FINALIZE_ANIM_CLASS_ADDRESS = 0x1BB;
+	constexpr uint32_t FINALIZE_SCRATCH_SAVE_ADDRESS = 0x1F4;
+	constexpr uint32_t FINALIZE_CREATE_PRIUS_ADDRESS = 0x233;
+	constexpr uint32_t FINALIZE_ANIM_SET_AT_ADDRESS = 0x25E;
+	constexpr uint32_t FINALIZE_REMOVE_ANIM_SET_ADDRESS = 0x278;
+	constexpr uint32_t FINALIZE_PUSH_ANIM_SET_ADDRESS = 0x609;
+	constexpr uint32_t FINALIZE_SCRATCH_RESTORE_ADDRESS = 0x707;
+
+	// script signals. the plug send loads the global signal queue and calls its
+	// AddEntry(queue, component handle *, input plug hash, output plug hash, source)
+	MAKE_SIGNATURE(SCRIPT_SIGNAL_SEND, "48 8D 0D ?? ?? ?? ?? 44 8B CD 89 44 24 20 E8")
+
+	constexpr uint32_t SCRIPT_SIGNAL_QUEUE_ADDRESS = 0x3;
+	constexpr uint32_t SCRIPT_SIGNAL_ADD_ENTRY_ADDRESS = 0xF;
+
+	// travel. a script node's call to LoadSystem::GetInstance, straight followed by
+	// the lea of the checkpoint manager inside the load system
+	MAKE_SIGNATURE(LOAD_SYSTEM_CHECKPOINTS, "E8 ?? ?? ?? ?? 41 8B D6 48 8D 98 ?? ?? ?? ?? 48 8D 6B 10")
+	// HeroTransitionManager::RequestCheckpointWarp (manager, checkpoint hash,
+	// dimension checkpoint hash, hero type, lighting mode). it only records the
+	// request; the hero's next update runs the engine's own warp
+	MAKE_SIGNATURE(HERO_REQUEST_CHECKPOINT_WARP, "8B 44 24 28 89 81 88 00 00 00 C6 41 79 01 89 51 7C 44 89 81 80 00 00 00 44 89 89 84 00 00 00 C3")
+
+	// the dimension system asking for its overlay: GetRegionAssetId, then
+	// LoadSystem::RequestOverlayLoad (load system, region asset id *) -> bool
+	MAKE_SIGNATURE(LOAD_SYSTEM_OVERLAY_LOAD, "44 8B 43 04 48 8D 54 24 30 48 8B C8 E8 ?? ?? ?? ?? 48 8B D0 48 8D 0D ?? ?? ?? ?? E8")
+	// a rift portal dropping its destination: LoadSystem::RequestOverlayUnload
+	// (load system, region asset id *) -> bool, then clearing the id
+	MAKE_SIGNATURE(LOAD_SYSTEM_OVERLAY_UNLOAD, "48 8D 53 54 48 8D 0D ?? ?? ?? ?? E8 ?? ?? ?? ?? 33 FF 48 89 7B 54")
+
+	// the load system's reset of the story overlays: lea CustomOverlaySystem, call
+	MAKE_SIGNATURE(CUSTOM_OVERLAY_SYSTEM, "48 8D 0D ?? ?? ?? ?? E8 ?? ?? ?? ?? B9 1E 00 00 00 48 8D 83 A0 43 00 00")
+
+	constexpr uint32_t CUSTOM_OVERLAY_SYSTEM_ADDRESS = 0x3;
+	// RequestOverlayLoad forwards to the overlay manager with add rcx, imm32
+	constexpr uint32_t OVERLAY_LOAD_MANAGER_ADD = 0xE;
+	constexpr uint32_t OVERLAY_LOAD_MANAGER_OFFSET = 0x11;
+	constexpr uint32_t LOAD_SYSTEM_OVERLAY_LOAD_ADDRESS = 0x1C;
+	constexpr uint32_t LOAD_SYSTEM_OVERLAY_UNLOAD_ADDRESS = 0xC;
+	// the passive shift script node starting a shift: lea of the controller's
+	// component handle, resolve, then PassiveShiftController::SetParams
+	// (controller, params *, actor array *) and later Start (controller,
+	// triggering actor handle *). a shift pulls the hero through one portal pair,
+	// an airlock, and out of a second pair; the controller lands the hero at the end
+	MAKE_SIGNATURE(PASSIVE_SHIFT_SET_PARAMS, "48 8D 0D ?? ?? ?? ?? E8 ?? ?? ?? ?? 4C 8D 45 D7 48 8B C8 48 8D 55 E7 E8")
+	MAKE_SIGNATURE(PASSIVE_SHIFT_START, "48 8D 0D ?? ?? ?? ?? E8 ?? ?? ?? ?? 48 8D 55 67 48 8B C8 E8")
+	// the node's Stop input: resolve the controller, then Stop (controller,
+	// triggering actor handle *), which ends the shift if that actor started it
+	MAKE_SIGNATURE(PASSIVE_SHIFT_STOP, "89 54 24 38 E8 ?? ?? ?? ?? 48 8B C8 48 8D 54 24 38 E8 ?? ?? ?? ?? 48 8B CB 48 83 C4 20 5B E9")
+
+	constexpr uint32_t PASSIVE_SHIFT_CONTROLLER_ADDRESS = 0x3;
+	constexpr uint32_t PASSIVE_SHIFT_SET_PARAMS_ADDRESS = 0x18;
+	constexpr uint32_t PASSIVE_SHIFT_START_ADDRESS = 0x14;
+	constexpr uint32_t PASSIVE_SHIFT_STOP_ADDRESS = 0x12;
+	// SpawnActorFromAsset (asset id, owner or null, const Mat4 *) -> Actor *: looks
+	// up a loaded actor asset and creates an actor from it at the matrix, there
+	// and then. null when the asset is not loaded
+	MAKE_SIGNATURE(SPAWN_ACTOR_FROM_ASSET, "48 89 5C 24 08 57 48 81 EC 90 00 00 00 48 8B FA 49 8B D8 48 8B D1 48 8D 0D ?? ?? ?? ?? E8 ?? ?? ?? ?? 48 85 C0 74")
+	// the controller's state; anything but 0 (idle) is a shift in progress
+	constexpr uint32_t PASSIVE_SHIFT_STATE = 0x48;
+
+	// the two planet menu script nodes that hand the travel checkpoints to the
+	// tunnel script: lea of a 256 byte name buffer, then SetVarString(plugs,
+	// buffer, "CheckpointName"). matches twice: the tunnel checkpoint buffer, and
+	// 0x100 past it the destination one
+	MAKE_SIGNATURE(PLANET_MENU_CHECKPOINT_READ, "48 8D 15 ?? ?? ?? ?? 48 8B 49 58 41 B8 F1 61 D0 71 E8")
+
+	// the ship's planet menu listener taking an accept: SetVarString(plugs,
+	// tunnel name, var) and later a tail jump to SendSignal(plugs, output). the
+	// sibling listener shares the prologue, both call the same two
+	MAKE_SIGNATURE(PLANET_MENU_ACCEPT_HANDLER, "48 89 5C 24 08 48 89 74 24 10 57 48 83 EC 20 48 8B F9 48 8B F2 48 8D 8A 38 01 00 00 E8")
+
+	constexpr uint32_t PLANET_MENU_SET_VAR_STRING_ADDRESS = 0x37;
+	constexpr uint32_t PLANET_MENU_SEND_SIGNAL_ADDRESS = 0xA2;
+	constexpr uint32_t PLANET_MENU_CHECKPOINT_ADDRESS = 0x3;
+	constexpr uint32_t PLANET_MENU_CHECKPOINT_SIZE = 0x100;
+	constexpr uint32_t LOAD_SYSTEM_GET_INSTANCE_ADDRESS = 0x1;
+	constexpr uint32_t LOAD_SYSTEM_CHECKPOINTS_OFFSET = 0xB;
+	// GetInstance is mov rax, [instance]; ret
+	constexpr uint32_t LOAD_SYSTEM_INSTANCE_ADDRESS = 0x3;
+	// the request flag RequestCheckpointWarp sets, read to tell a pending warp
+	constexpr uint32_t HERO_CHECKPOINT_WARP_PENDING = 0x79;
+
+	// HasBundle looks the bundle up in the config manager first, and dereferences
+	// the result unchecked: lea of the manager, then the call to its lookup
+	constexpr uint32_t VANITY_HAS_BUNDLE_CONFIGS_ADDRESS = 0x22;
+	constexpr uint32_t VANITY_HAS_BUNDLE_LOOKUP_ADDRESS = 0x31;
 
 	constexpr uint32_t HERO_SYSTEM_ADDRESS = 0x3;
 	constexpr uint32_t SCENE_MANAGER_ADDRESS = 0x3;

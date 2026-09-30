@@ -2,9 +2,12 @@
 //
 // SPDX-License-Identifier: EUPL-1.2
 
+#include <chrono>
+#include <filesystem>
 #include <format>
 #include <fstream>
 #include <mutex>
+#include <thread>
 
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
@@ -22,7 +25,7 @@ if (tbl.contains(#group) && tbl.at(#group).is_table()) { \
 }
 
 #define LOAD_SETTING_KEY(group, name) \
-if (tbl.contains(#group) && tbl.at(#group).is_table()) { \
+if (tbl.contains(#group) && tbl.at(#group).is_table() && tbl.at(#group).contains(#name)) { \
 	auto var = tbl.at(#group).at(#name); \
 	if (var.is_string()) settings.group.name = StringToVKey(var.as_string()); \
 	else if (var.is_integer()) settings.group.name = static_cast<int>(var.as_integer()); \
@@ -45,6 +48,28 @@ if (tbl.contains(#group) && tbl.at(#group).is_table()) { \
 using toml_table = toml::basic_value<toml::ordered_type_config>::table_type;
 
 namespace rivet_hook {
+	// anchor the file next to the game exe. a bare relative path follows the working
+	// directory, which launchers don't always set, and a miss there looks like a reset.
+	auto
+	settings_path() -> const std::filesystem::path & {
+		static const auto path = [] {
+			std::wstring buffer(MAX_PATH, L'\0');
+			for (;;) {
+				const auto length = GetModuleFileNameW(nullptr, buffer.data(), static_cast<DWORD>(buffer.size()));
+				if (length == 0) {
+					return std::filesystem::path(settings_name);
+				}
+				if (length < buffer.size()) {
+					buffer.resize(length);
+					break;
+				}
+				buffer.resize(buffer.size() * 2);
+			}
+			return std::filesystem::path(buffer).parent_path() / std::filesystem::path(settings_name).filename();
+		}();
+		return path;
+	}
+
 	auto
 	valid_fingerprint(Settings &settings) -> bool {
 		const auto dos = reinterpret_cast<PIMAGE_DOS_HEADER>(g_game_module);
@@ -72,9 +97,23 @@ namespace rivet_hook {
 	Settings::load() -> Settings {
 		Settings settings;
 
-		if (std::filesystem::exists(settings_name)) {
+		const auto &path = settings_path();
+		if (std::error_code ec; std::filesystem::exists(path, ec)) {
 			try {
-				auto tbl = toml::parse(settings_name);
+				// an editor or sync tool can hold the file for a moment while saving it,
+				// retry a few times before giving up on it
+				auto tbl = [&path] {
+					for (auto attempt = 0;; ++attempt) {
+						try {
+							return toml::parse(path);
+						} catch (const toml::file_io_error &) {
+							if (attempt >= 4) {
+								throw;
+							}
+							std::this_thread::sleep_for(std::chrono::milliseconds(50));
+						}
+					}
+				}();
 				if (!tbl.is_table()) {
 					tbl = toml_table();
 				}
@@ -83,6 +122,7 @@ namespace rivet_hook {
 				LOAD_SETTING(utility, bool, attach_context_log);
 				LOAD_SETTING(utility, bool, attach_log);
 				LOAD_SETTING(utility, bool, unpause_focus);
+				LOAD_SETTING(utility, bool, unpause_input);
 
 				LOAD_SETTING(overlay, bool, enabled);
 				LOAD_SETTING_KEY(overlay, toggle_key);
@@ -92,6 +132,20 @@ namespace rivet_hook {
 				LOAD_SETTING(ddl, bool, dump_components);
 				LOAD_SETTING(ddl, bool, dump_ddl);
 				LOAD_SETTING(ddl, bool, debug_ddl);
+
+				LOAD_SETTING(bridge, bool, enabled);
+				LOAD_SETTING(bridge, std::string, pipe_name);
+
+				LOAD_SETTING(scripts, bool, enabled);
+				LOAD_SETTING(scripts, std::string, path);
+				LOAD_SETTING_KEY(scripts, reload_key);
+				LOAD_SETTING(scripts, int, budget_ms);
+				LOAD_SETTING(scripts, int, check_interval);
+				LOAD_SETTING(scripts, int, error_limit);
+
+				LOAD_SETTING(hero_look, std::string, path);
+				LOAD_SETTING(hero_look, bool, anims);
+				LOAD_SETTING(hero_look, bool, apply_on_launch);
 
 				LOAD_SETTING(renderdoc, bool, enabled);
 				LOAD_SETTING(renderdoc, std::string, dll_path);
@@ -120,13 +174,25 @@ namespace rivet_hook {
 							settings.address_cache.addresses[key] = {};
 
 							for (auto &value : values.as_array()) {
+								if (!value.is_integer()) {
+									continue;
+								}
 								settings.address_cache.addresses[key].emplace_back(value.as_integer() + reinterpret_cast<intptr_t>(g_game_module));
 							}
 						}
 					}
 				}
+			} catch (const std::exception &failure) {
+				// run on defaults this session, but never write them over the user's file
+				settings = Settings {};
+				settings.read_failed = true;
+				g_output << "[rivet] could not read " << path.string() << ", using defaults and leaving the file untouched: " << failure.what() << "\n";
+				g_output.flush();
 			} catch (...) {
-				// ignored
+				settings = Settings {};
+				settings.read_failed = true;
+				g_output << "[rivet] could not read " << path.string() << ", using defaults and leaving the file untouched\n";
+				g_output.flush();
 			}
 		}
 
@@ -135,11 +201,18 @@ namespace rivet_hook {
 
 	auto
 	Settings::save() const -> void {
+		if (read_failed) {
+			return;
+		}
+
 		toml::basic_value<toml::ordered_type_config> tbl = toml_table();
 
 		CREATE_TABLE(utility);
 		CREATE_TABLE(overlay);
 		CREATE_TABLE(ddl);
+		CREATE_TABLE(bridge);
+		CREATE_TABLE(scripts);
+		CREATE_TABLE(hero_look);
 		CREATE_TABLE(renderdoc);
 		CREATE_TABLE(assets);
 		CREATE_TABLE(log);
@@ -149,6 +222,7 @@ namespace rivet_hook {
 		SAVE_SETTING(utility, attach_context_log, "redirect the internal logger context state to rivet.log; disable by default for clutter reasons");
 		SAVE_SETTING(utility, attach_log, "redirect the internal logger to rivet.log; disable by default because the same line is printed frequently");
 		SAVE_SETTING(utility, unpause_focus, "prevent the game from pausing when alt tabbed");
+		SAVE_SETTING(utility, unpause_input, "with unpause_focus, keep reading keyboard and mouse while alt tabbed; off means input stops while another window has focus");
 
 		SAVE_SETTING(overlay, enabled, "enable imgui overlay for various in game stuffs");
 		SAVE_SETTING_KEY(overlay, toggle_key, "what key to toggle the imgui overlay with");
@@ -158,6 +232,20 @@ namespace rivet_hook {
 		SAVE_SETTING(ddl, dump_components, "dumps components to json; disable by default for clutter reasons");
 		SAVE_SETTING(ddl, dump_ddl, "dumps DDL type structures to json; disable by default for clutter reasons");
 		SAVE_SETTING(ddl, debug_ddl, "logs DDL type information; disable by default because log noise");
+
+		SAVE_SETTING(bridge, enabled, "expose a named pipe for external tooling; disable by default because it is an rpc surface inside the game");
+		SAVE_SETTING(bridge, pipe_name, R"(name of the pipe, reachable as \\.\pipe\<name>)");
+
+		SAVE_SETTING(scripts, enabled, "run lua scripts from the scripts directory; disable by default because a script runs arbitrary code inside the game");
+		SAVE_SETTING(scripts, path, "directory the .lua files are loaded from, relative to the game exe");
+		SAVE_SETTING_KEY(scripts, reload_key, "what key to reload every script with");
+		SAVE_SETTING(scripts, budget_ms, "wall clock budget for one script callback in milliseconds; scripts run inside the game frame so overrunning this is a visible stutter");
+		SAVE_SETTING(scripts, check_interval, "how many lua instructions run between budget checks");
+		SAVE_SETTING(scripts, error_limit, "consecutive errors before a callback is switched off");
+
+		SAVE_SETTING(hero_look, path, "the last look put on the hero, a .actor or .model path; empty once it was taken off");
+		SAVE_SETTING(hero_look, anims, "whether that look also carries its actor asset's anim sets");
+		SAVE_SETTING(hero_look, apply_on_launch, "put that look back on once the hero first appears after a launch");
 
 		SAVE_SETTING(renderdoc, enabled, "loads renderdoc.dll into the game; disable by default because it has issues with ReShade");
 		SAVE_SETTING(renderdoc, dll_path, "path to renderdoc/dll");
@@ -184,8 +272,31 @@ namespace rivet_hook {
 			tbl["address_cache"][key] = arr;
 		}
 
-		if (std::ofstream file(settings_name, std::ios::trunc); file.is_open()) {
+		// write a sibling file and swap it in. truncating in place leaves an empty or
+		// half written rivet.toml if the process dies mid save (fini runs during
+		// teardown), and the next launch would then parse that as a reset.
+		const auto &path = settings_path();
+		auto temp = path;
+		temp += L".tmp";
+
+		{
+			std::ofstream file(temp, std::ios::trunc);
+			if (!file.is_open()) {
+				return;
+			}
 			file << tbl;
+			file.flush();
+			if (!file.good()) {
+				file.close();
+				std::error_code ec;
+				std::filesystem::remove(temp, ec);
+				return;
+			}
+		}
+
+		if (!MoveFileExW(temp.c_str(), path.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) {
+			std::error_code ec;
+			std::filesystem::remove(temp, ec);
 		}
 	}
 } // namespace rivet_hook

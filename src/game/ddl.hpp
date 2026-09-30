@@ -5,7 +5,10 @@
 #pragma once
 
 #include <array>
+#include <cstddef>
 #include <cstdint>
+#include <iterator>
+#include <string>
 
 namespace rivet_hook::game {
 #pragma pack(push, 1)
@@ -92,11 +95,19 @@ namespace rivet_hook::game {
 		uint32_t hash;
 	};
 
+	static_assert(sizeof(DDLRuntimeString) == 0x10, "DDLRuntimeString size is not 0x10");
+
+	// asset_id is packed directly after length, unaligned, and the struct is padded
+	// out to 0x18 at the end. live field offsets put consecutive file fields 0x18
+	// apart, and reading asset_id at +0x10 instead yields ids with a zero high half.
 	struct DDLRuntimeFile {
 		const char *value;
 		int32_t length;
 		uint64_t asset_id;
+		uint32_t padding;
 	};
+
+	static_assert(sizeof(DDLRuntimeFile) == 0x18, "DDLRuntimeFile size is not 0x18");
 
 	struct ComponentPriusInfo {
 		ddl_call_t *init;
@@ -107,6 +118,65 @@ namespace rivet_hook::game {
 		int64_t size;
 	};
 
+	// renders the set bits of a flag word by name, "bitN" for the ones without one
+	inline auto
+	DescribeFlags(const uint32_t value, const char *const *names, const size_t count) -> std::string {
+		std::string text;
+		for (uint32_t bit = 0; bit < 32; ++bit) {
+			if ((value & (1u << bit)) == 0) {
+				continue;
+			}
+
+			if (!text.empty()) {
+				text += '|';
+			}
+
+			if (bit < count && names[bit] != nullptr) {
+				text += names[bit];
+			} else {
+				text += "bit" + std::to_string(bit);
+			}
+		}
+
+		return text;
+	}
+
+	// ComponentInfo::class_flags. bits 0-5 are the six update stages, in slot order
+	constexpr const char *COMPONENT_CLASS_FLAG_NAMES[] = {
+		"HasUpdateFirst",
+		"HasUpdateFirstResults",
+		"HasUpdateMiddle",
+		"HasUpdateLast",
+		"HasUpdateAsync",
+		"HasUpdateAsyncResults",
+		"HasDerivedClasses",
+		"AllowMultiple",
+		"IsBaseOnly",
+		"CacheQueries",
+		"OnActivateThreadSafe",
+		"OnDeactivateThreadSafe",
+		"OnDestroyThreadSafe",
+		"HasDerivedDebugDisplay",
+	};
+
+	// how the component's prius is held. a ReadOnly prius is one allocation
+	// shared by every instance, so writing it changes all of them.
+	enum class PriusBehavior : uint8_t {
+		ReadOnly = 0,
+		Local = 1,
+		ReadWrite = 2,
+	};
+
+	constexpr auto
+	PriusBehaviorName(const PriusBehavior behavior) -> const char * {
+		switch (behavior) {
+			case PriusBehavior::ReadOnly: return "ReadOnly";
+			case PriusBehavior::Local: return "Local";
+			case PriusBehavior::ReadWrite: return "ReadWrite";
+			default: return "Unknown";
+		}
+	}
+
 	struct ComponentInfo {
 		ddl_call_t *update_first;
 		ddl_call_t *update_first_results;
@@ -116,20 +186,41 @@ namespace rivet_hook::game {
 		ddl_call_t *update_async_results;
 		ComponentPriusInfo prius_info;
 		const char *name;
-		void *unknown1;
-		void *unknown2;
+		void *sort_helper;
+		void *sync_class;
 		int32_t size;
-		uint32_t id;
-		intptr_t base_components[9]; // cleared by component manager
+		uint32_t id; // name hash
+		// the full ancestor chain, parent_count entries long
+		const ComponentInfo *parent_classes[9];
 		DDLTypeInfo *prius;
 		ddl_call_t *create;
-		int32_t unknown3;
-		uint16_t index_a;
-		uint16_t index_b;
-		uint16_t flags;
-		uint8_t unknown4;
-		uint8_t flags2;
+		int32_t cache_index_offset;
+		uint16_t index; // registry index
+		uint16_t update_order; // lower runs earlier
+		uint16_t cache_index;
+		uint16_t block_count;
+		uint16_t class_flags; // COMPONENT_CLASS_FLAG_NAMES
+		uint8_t parent_count;
+		PriusBehavior prius_behavior;
+
+		auto
+		DerivesFrom(const ComponentInfo *other) const -> bool {
+			for (uint8_t i = 0; i < parent_count && i < std::size(parent_classes); ++i) {
+				if (parent_classes[i] == other) {
+					return true;
+				}
+			}
+
+			return false;
+		}
 	};
+
+	static_assert(offsetof(ComponentInfo, name) == 0x60, "ComponentInfo name offset is not 0x60");
+	static_assert(offsetof(ComponentInfo, parent_classes) == 0x80, "ComponentInfo parent_classes offset is not 0x80");
+	static_assert(offsetof(ComponentInfo, prius) == 0xc8, "ComponentInfo prius offset is not 0xc8");
+	static_assert(offsetof(ComponentInfo, cache_index) == 0xe0, "ComponentInfo cache_index offset is not 0xe0");
+	static_assert(offsetof(ComponentInfo, class_flags) == 0xe4, "ComponentInfo class_flags offset is not 0xe4");
+	static_assert(sizeof(ComponentInfo) == 0xe8, "ComponentInfo size is not 0xe8");
 
 #pragma pack(pop)
 } // namespace rivet_hook::game
