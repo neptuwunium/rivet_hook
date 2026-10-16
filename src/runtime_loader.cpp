@@ -501,12 +501,24 @@ namespace rivet_hook {
 
 		const auto first_part = *entry_path.begin();
 
-		uint32_t directory_id = 0;
-		try {
-			directory_id = std::stoul(first_part.string());
-		} catch (const std::exception &e) {
-			g_output << "[assets/stage] could not parse group id for path " << path.string() << "@" << entry_path.string() << ": " << e.what() << "\n";
-			return;
+		uint32_t directory_id = 0x100;
+		auto it = entry_path.begin();
+		const auto end = entry_path.end();
+		for (; it != end; ++it) {
+			try {
+				directory_id = std::stoul(it->string());
+				break;
+			} catch (const std::exception&) {
+				// ignored
+			}
+		}
+
+		const auto filename = entry_path.filename();
+		if (it == end) {
+			if (filename == "info.json") {
+				return;
+			}
+			g_output << "[assets/stage] could not parse group id for path " << path.string() << "@" << entry_path.string() << "\n";
 		}
 
 		if (directory_id > 0xff) {
@@ -523,16 +535,20 @@ namespace rivet_hook {
 		}
 
 		AssetId asset_id = 0;
-		const auto final_path = entry_path.lexically_relative(*entry_path.begin()).string();
+		std::filesystem::path final_path;
+		for (++it; it != end; ++it) {
+			final_path /= *it;
+		}
+
 		if (entry_path.extension() == "") {
 			try {
-				asset_id = std::stoull(entry_path.filename().string(), nullptr, 16);
+				asset_id = std::stoull(filename.string(), nullptr, 16);
 			} catch (const std::exception &e) {
 				g_output << "[assets/stage] could not parse asset id for path " << path.string() << "@" << entry_path.string() << ": " << e.what() << "\n";
 				return;
 			}
 		} else {
-			game_create_asset_id(&asset_id, final_path.c_str());
+			game_create_asset_id(&asset_id, final_path.string().c_str());
 		}
 
 		const auto size = static_cast<int32_t>(file_info->uncompressed_size);
@@ -551,7 +567,7 @@ namespace rivet_hook {
 		} while (bytes_read > 0 && offset < size);
 
 		if (size == offset) {
-			populate_mod_asset(entry_path, final_path, asset_id, type, language, buffer, size);
+			populate_mod_asset(entry_path, final_path.string(), asset_id, type, language, buffer, size);
 		} else {
 			delete[] buffer;
 		}
